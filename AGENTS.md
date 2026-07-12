@@ -77,6 +77,12 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **Honest limitation:** true mailbox verification needs SMTP RCPT-TO on port 25, which cloud hosts block — MX + pattern confidence is the zero-cost ceiling; bounce handling covers the rest.
 **YC jobs:** "Ask HN: Who is Hiring" monthly thread via HN's free Algolia API — parses the "Company | Role | Location" comment convention; verified live (85 matching startup jobs).
 
+### Step 6 — Cold Email + LinkedIn Kit ✅
+**Gmail with raw REST, not the SDK:** we need exactly 2 endpoints (token refresh + send), so I skipped the ~10MB `googleapis` package and built a small client: refresh-token flow with DB persistence, hand-built RFC2822 MIME (UTF-8 subject encoding, multipart PDF attachment, In-Reply-To headers ready for threaded follow-ups).
+**The retry that must NOT exist:** every other external call retries on failure — the Gmail send has `retries: 0`. An ambiguous failure (timeout after the server accepted) + retry = the recruiter gets the email twice. Idempotency > availability for sends.
+**Approval-first flow:** AI drafts the whole kit in one call (email + LinkedIn note + DM, one voice); the user reviews and can edit; their edits override the draft at send time. Daily cap checked at send (RATE_LIMITED), already-sent guard (CONFLICT).
+**Prompt quality detail:** the drafter has a banned-phrase list ("I hope this email finds you well", "passionate", flattery) and a hard structure: hook → 2-3 real proof points mapped to the JD → links → low-friction CTA, under 150 words.
+
 ---
 
 ## Conventions

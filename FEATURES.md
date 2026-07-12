@@ -189,13 +189,14 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] `POST /api/applications/:id/find-recruiter` → stores best on Recruiter row, returns alternates
 - [ ] n8n WF3 wiring lands in Phase 7
 
-### Phase 6 — Cold Email + LinkedIn Messages
-- [ ] Gmail send via user's OAuth tokens (google-api client)
-- [ ] Email drafting prompt (template: hook/proof/links/CTA)
-- [ ] Approval flow UI (review → edit → send) + AUTO mode
-- [ ] Daily cap + human-like random send delays
-- [ ] LinkedIn message generator + copy-to-clipboard UI
-- [ ] n8n WF4
+### ✅ Phase 6 — Cold Email + LinkedIn Messages (DONE — API layer)
+- [x] Gmail via raw REST (2 endpoints; skipped the 10MB `googleapis` SDK): token refresh w/ persistence, RFC2822 MIME builder (UTF-8 subjects, PDF attachment, reply threading headers for follow-ups), **retries=0 on send** (an ambiguous-failure retry = double-send)
+- [x] One-call outreach drafting: cold email (hook/proof/links/CTA, <150 words, banned-cliché list) + LinkedIn connection note (<280 chars) + LinkedIn DM — single LLM round trip, consistent voice
+- [x] Approval flow API: `POST /:id/outreach` (draft, idempotent upsert) → `GET /:id/outreach` (review) → `POST /:id/send` (user edits win over AI draft)
+- [x] Daily cap enforced at send time (default 20/day, RATE_LIMITED error) — protects Gmail sender reputation
+- [x] Already-sent guard (CONFLICT) + idempotency key `applicationId:COLD`
+- [x] `POST /:id/linkedin-copied` — records manual LinkedIn send for the tracker
+- [ ] Approval screen UI → Phase 8 dashboard; human-like random delays between auto-sends → n8n WF4 (Phase 7)
 
 ### Phase 7 — Tracker + Follow-ups + Reply Detection
 - [ ] Status machine + ApplicationEvent logging on every transition
