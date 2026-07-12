@@ -179,11 +179,15 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] Status transitions + append-only event log (`transitionStatus` / `logEvent`)
 - [ ] n8n WF2 wiring lands in Phase 7 with the rest of the automation
 
-### Phase 5 — Free Email Finder
-- [ ] Site scraper (contact/about/team/careers pages) + email regex + pattern learner
-- [ ] Candidate generator (name × patterns + role fallbacks)
-- [ ] MX verification + catch-all detection (`dns.promises`)
-- [ ] Confidence scoring + `POST /api/applications/:id/find-recruiter` + n8n WF3
+### ✅ Phase 5 — Free Email Finder + YC Jobs (DONE)
+- [x] **YC jobs source**: `HN_HIRING` adapter — monthly "Ask HN: Who is Hiring" thread via free Algolia API; parses "Company | Role | Location" convention; full-text query filtering (verified live: 85 matching jobs)
+- [x] Domain discovery: company name → candidate domains (.com/.io/.co/.ai/.dev/.in) → first with MX records wins; discovered domain cached back onto the job rows
+- [x] Site scraper (/, /contact, /about, /team, /careers, /jobs) + email regex + junk filter + pattern learner (first.last / f.last / first_last detection from real emails)
+- [x] Candidate generator: recruiter name × 6 patterns + role fallbacks (careers@, jobs@, hr@…)
+- [x] MX verification (`dns.promises.resolveMx`); no-MX caps confidence at 15 (bounces poison sender reputation). SMTP RCPT-TO documented as impossible on cloud hosts (port 25 blocked)
+- [x] Tiered confidence: careers@ on site 95 · personal on site 90 · name+discovered pattern 80 · name+common pattern 60 · sales@/info@ on site 45 · role fallback 40
+- [x] `POST /api/applications/:id/find-recruiter` → stores best on Recruiter row, returns alternates
+- [ ] n8n WF3 wiring lands in Phase 7
 
 ### Phase 6 — Cold Email + LinkedIn Messages
 - [ ] Gmail send via user's OAuth tokens (google-api client)

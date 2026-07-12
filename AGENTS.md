@@ -71,6 +71,12 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **LaTeX pipeline:** slot-based template (`%%EXPERIENCE%%` markers — designers edit the .tex, code fills slots) → single-pass escaping (sequential replaces would re-escape inserted braces — classic bug, avoided) → compiler adapter: local Tectonic in prod, free remote compile API on dev machines. Verified with a real PDF incl. special-char stress test.
 **ATS score is explainable:** 70% JD-keyword coverage + 30% completeness checks; user sees exactly which keywords are missing (this also feeds the skill-gap feature later).
 
+### Step 5 — Free Email Finder + YC Jobs ✅
+**The "I built my own Hunter.io" story.** Pipeline: company name → domain discovery (guess candidate domains, first with DNS MX records wins) → scrape public pages for real emails → learn the company's email pattern from them → generate candidates (recruiter name × 6 patterns + careers@/hr@ fallbacks) → MX-verify → tiered confidence (careers@ found on site 95 → role fallback 40; **no MX = capped at 15** because bounces poison the user's Gmail sender reputation).
+**Nuance worth telling:** found-on-site emails aren't all equal — `careers@` is the hiring channel (95) but `sales@` is real-yet-wrong-audience (45, ranked BELOW name-based guesses). Caught this in live testing against a real company.
+**Honest limitation:** true mailbox verification needs SMTP RCPT-TO on port 25, which cloud hosts block — MX + pattern confidence is the zero-cost ceiling; bounce handling covers the rest.
+**YC jobs:** "Ask HN: Who is Hiring" monthly thread via HN's free Algolia API — parses the "Company | Role | Location" comment convention; verified live (85 matching startup jobs).
+
 ---
 
 ## Conventions
