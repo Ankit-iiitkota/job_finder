@@ -26,6 +26,10 @@ const envSchema = z.object({
   ADZUNA_APP_KEY: z.string().optional(),
   JOOBLE_API_KEY: z.string().optional(),
 
+  // LaTeX compilation
+  LATEX_COMPILER: z.enum(["local", "remote"]).optional(),
+  LATEX_REMOTE_URL: z.url().default("https://latex.ytotech.com/builds/sync"),
+
   // n8n integration
   N8N_WEBHOOK_BASE_URL: z.string().url().optional(),
   // shared secret: n8n must send this in `x-webhook-secret` when calling us back

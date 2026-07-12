@@ -65,6 +65,12 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **Resume pipeline**: upload → text extraction (unpdf for PDF, mammoth for DOCX; detects scanned images by min text length) → Claude **structured outputs** (response is schema-constrained + Zod-validated — malformed LLM output is impossible downstream) → original stored via a swappable storage adapter (local disk now, S3 later; path-traversal guard on keys).
 **Interview line:** "The LLM prompt is extraction-only — same no-fabrication rule as tailoring — and I trust the schema, not the model: structured outputs + Zod validation at the boundary."
 
+### Step 4 — Resume Tailoring + LaTeX PDF + ATS ✅
+**One LLM call, two jobs:** JD analysis + tailoring in a single structured-output request (half the cost of two round trips; the analysis grounds the tailoring).
+**No-fabrication has THREE layers:** (1) hard rules in the prompt, (2) schema field descriptions, (3) a programmatic guard — any employer/institution in the output that isn't in the master profile rejects the whole result. "I don't trust the model's promise; I verify."
+**LaTeX pipeline:** slot-based template (`%%EXPERIENCE%%` markers — designers edit the .tex, code fills slots) → single-pass escaping (sequential replaces would re-escape inserted braces — classic bug, avoided) → compiler adapter: local Tectonic in prod, free remote compile API on dev machines. Verified with a real PDF incl. special-char stress test.
+**ATS score is explainable:** 70% JD-keyword coverage + 30% completeness checks; user sees exactly which keywords are missing (this also feeds the skill-gap feature later).
+
 ---
 
 ## Conventions

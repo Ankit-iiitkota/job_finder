@@ -169,12 +169,15 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] UI: landing page with Google sign-in, `/profile` editor (upload → parsed skills preview → preferences form)
 - [ ] ⏳ DB migration pending — needs a running Postgres (Neon free tier or Docker); run `npx prisma migrate dev --name init` once DATABASE_URL points at a live DB
 
-### Phase 4 — Resume Tailoring + LaTeX PDF
-- [ ] JD analysis prompt (extract keywords, skills, seniority)
-- [ ] Tailoring prompt (reorder/rephrase, no fabrication, structured output)
-- [ ] LaTeX template (`latex-templates/resume.tex`) + Tectonic compile service (Docker)
-- [ ] ATS score estimator (keyword coverage + format checks)
-- [ ] `POST /api/applications/:id/tailor` + n8n WF2
+### ✅ Phase 4 — Resume Tailoring + LaTeX PDF (DONE)
+- [x] Single-call JD analysis + tailoring (one LLM round trip = half the cost): structured output with keywords, seniority, tailored resume
+- [x] Three-layer no-fabrication defense: prompt rules → schema descriptions → programmatic guard (tailored companies/institutions must exist in master profile, else rejected)
+- [x] LaTeX template (`latex-templates/resume.tex`, slot-based — editable without touching code) + single-pass LaTeX escaping (order-safe)
+- [x] Compiler adapter: local Tectonic (prod/Docker) with auto-fallback to free remote compile API (dev machines) — verified: real PDF generated
+- [x] ATS estimator: 70% JD-keyword coverage + 30% completeness checks; returns covered/missing keywords (explainable)
+- [x] `POST /api/applications` (create + match score), `POST /api/applications/:id/tailor`, `GET /api/applications/:id/resume` (PDF download), `GET /api/applications`
+- [x] Status transitions + append-only event log (`transitionStatus` / `logEvent`)
+- [ ] n8n WF2 wiring lands in Phase 7 with the rest of the automation
 
 ### Phase 5 — Free Email Finder
 - [ ] Site scraper (contact/about/team/careers pages) + email regex + pattern learner
