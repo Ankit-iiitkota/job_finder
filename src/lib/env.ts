@@ -13,8 +13,8 @@ const envSchema = z.object({
 
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 
-  // Auth
-  NEXTAUTH_SECRET: z.string().min(1).optional(),
+  // Auth (Auth.js v5)
+  AUTH_SECRET: z.string().min(1).optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 

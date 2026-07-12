@@ -160,11 +160,14 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] `POST /api/jobs/scan` (secret-protected, n8n will call this) + `GET /api/jobs` (search/filter/paginate)
 - [x] Match scoring utility (skill/keyword overlap, 0–100, explainable)
 
-### Phase 3 — Auth + Profile + Resume Upload
-- [ ] NextAuth (Auth.js) with Google provider + Gmail scopes; Prisma adapter session storage
-- [ ] Resume upload (PDF/DOCX) → text extraction
-- [ ] Claude integration `lib/ai/`: parse resume → structured JSON (zod-validated)
-- [ ] Profile editor page (review parsed data, target roles, links, preferences)
+### ✅ Phase 3 — Auth + Profile + Resume Upload (DONE)
+- [x] Auth.js v5 with Google provider + Gmail scopes (`gmail.send`, `gmail.readonly`, offline access → refresh token stored on Account); Prisma adapter, database sessions
+- [x] Resume upload `POST /api/resume` (PDF via unpdf, DOCX via mammoth; 5MB cap; scanned-image detection)
+- [x] Claude integration `lib/ai/`: `parseResume()` — structured outputs (Zod schema-constrained), extraction-only prompt (no fabrication), refusal handling
+- [x] File storage adapter (`lib/storage.ts` — local disk now, S3/Supabase swappable; path-traversal guard)
+- [x] Profile service + `GET/PUT /api/profile` (target roles, locations, links, send mode, daily cap)
+- [x] UI: landing page with Google sign-in, `/profile` editor (upload → parsed skills preview → preferences form)
+- [ ] ⏳ DB migration pending — needs a running Postgres (Neon free tier or Docker); run `npx prisma migrate dev --name init` once DATABASE_URL points at a live DB
 
 ### Phase 4 — Resume Tailoring + LaTeX PDF
 - [ ] JD analysis prompt (extract keywords, skills, seniority)

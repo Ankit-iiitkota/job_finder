@@ -60,6 +60,11 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 ### Step 2 — Job Discovery Engine ✅
 `JobSourceAdapter` interface; RemoteOK / Remotive / Arbeitnow adapters (free public APIs, zero keys); scan service with `Promise.allSettled` + freshness filter (72h) + DB upsert dedupe; `POST /api/jobs/scan` (secret-protected — n8n calls it) and `GET /api/jobs` (search/filter/pagination); explainable match scoring (title×3 / tags×2 / description×1 keyword weights → 0-100).
 
+### Step 3 — Auth + Profile + Resume Parsing ✅
+**Auth.js v5 + Google**: one consent grants sign-in AND Gmail scopes (`gmail.send`/`gmail.readonly`, `access_type=offline` + `prompt=consent` → refresh token saved on the Account row — no separate "connect Gmail" step later). Database sessions (revocable) via Prisma adapter.
+**Resume pipeline**: upload → text extraction (unpdf for PDF, mammoth for DOCX; detects scanned images by min text length) → Claude **structured outputs** (response is schema-constrained + Zod-validated — malformed LLM output is impossible downstream) → original stored via a swappable storage adapter (local disk now, S3 later; path-traversal guard on keys).
+**Interview line:** "The LLM prompt is extraction-only — same no-fabrication rule as tailoring — and I trust the schema, not the model: structured outputs + Zod validation at the boundary."
+
 ---
 
 ## Conventions

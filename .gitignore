@@ -43,3 +43,6 @@ next-env.d.ts
 
 # prisma generated client (regenerated via postinstall)
 /src/generated/
+
+# local file uploads
+/var/
