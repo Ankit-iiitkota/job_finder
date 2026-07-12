@@ -1,0 +1,206 @@
+# AI Job Finder — Features, Architecture & Phase Plan
+
+> Full product + technical spec. For interview prep notes see `AGENTS.md`.
+
+---
+
+## 1. Product Summary
+
+An AI-powered job application autopilot: upload your resume once → the platform finds fresh jobs matching your skills, tailors your resume per job (ATS-optimized, LaTeX PDF), finds the recruiter/HR/founder email (free pipeline), sends a personalized cold email (resume + portfolio + GitHub links), gives you a LinkedIn message to send manually, auto-follows-up after 7 days, and tracks everything on a dashboard.
+
+---
+
+## 2. Core Features
+
+| # | Feature | Description |
+|---|---|---|
+| F1 | **Resume Upload & Parsing** | PDF/DOCX upload → LLM extracts skills/experience/education/projects into structured JSON → user reviews/edits → becomes the "master profile" |
+| F2 | **Job Discovery** | n8n cron (every 2h) fetches jobs from free APIs → dedupe → freshness filter (<72h) → match score vs user skills → DB |
+| F3 | **ATS Resume Tailoring** | LLM reads JD → reorders skills, rephrases bullets with JD keywords (NEVER invents facts) → fills LaTeX template → PDF + ATS score estimate |
+| F4 | **Recruiter Email Finding** | 100% free pipeline: site scrape → pattern discovery → candidate generation → DNS MX verification → confidence score (see §4) |
+| F5 | **Cold Email Sending** | LLM drafts personalized email (hook + proof + resume/portfolio/GitHub links + CTA) → sent from user's own Gmail → approval mode default |
+| F6 | **LinkedIn Message Generator** | Connection note + DM generated; user sends manually (LinkedIn automation = ToS ban risk) |
+| F7 | **Tracker + Auto Follow-up** | Status pipeline per application; no reply in 7 days → auto follow-up (max 2); Gmail inbox watched for replies |
+| F8 | **Dashboard** | Jobs found, applications kanban/table, resumes, emails, follow-ups, response-rate stats |
+
+### Upgrade Features (build after core)
+1. Email verification before sending (MX + pattern confidence → avoid bounces)
+2. Human-like rate limiting (default 20 emails/day, random delays)
+3. Skill-gap analysis ("most missing skills across saved jobs")
+4. A/B testing of email templates (track reply rate per template)
+5. Job match score shown before applying
+6. Interview prep generator (when recruiter replies: likely questions from JD + resume)
+7. Resume version history per application
+8. Notifications (Telegram/email: new high-match job, reply received)
+9. v2: Chrome extension, salary insights, referral finder, multi-resume profiles, weekly report email
+
+---
+
+## 3. Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        USER (Browser)                            │
+└───────────────┬─────────────────────────────────────────────────┘
+                │
+┌───────────────▼─────────────────────────────────────────────────┐
+│   NEXT.JS APP  (Frontend + API Routes)                           │
+│   - Auth (NextAuth + Google, incl. Gmail scopes)                 │
+│   - Resume upload UI, Dashboard, Tracker, Settings               │
+│   - API routes: /api/resume, /api/jobs, /api/applications ...    │
+└───────┬───────────────────────────────┬─────────────────────────┘
+        │                               │ webhooks (both directions)
+┌───────▼────────┐              ┌───────▼──────────────────────────┐
+│  POSTGRESQL    │◄────────────►│   n8n  (Automation Engine)       │
+│  (Prisma 7)    │              │  WF1: Job Scanner (cron 2h)      │
+│                │              │  WF2: Resume Tailor (webhook)    │
+│                │              │  WF3: Email Finder (webhook)     │
+│                │              │  WF4: Cold Email Sender          │
+│                │              │  WF5: Follow-up (cron daily)     │
+│                │              │  WF6: Reply Detector (cron 15m)  │
+└────────────────┘              └───────┬──────────────────────────┘
+                                        │
+     ┌──────────────────┬───────────────┼──────────────────────┐
+┌────▼─────────┐ ┌──────▼──────┐ ┌──────▼───────────┐ ┌────────▼───────┐
+│ FREE Job APIs│ │ Claude API  │ │ FREE Email Finder│ │ Gmail API      │
+│ RemoteOK     │ │ parse/tailor│ │ patterns + MX +  │ │ send + reply   │
+│ Remotive     │ │ draft/msgs  │ │ site scraping    │ │ detection      │
+│ Arbeitnow    │ └─────────────┘ └──────────────────┘ └────────────────┘
+│ Adzuna/Lever │      ┌─────────────────┐
+│ Greenhouse   │      │ LaTeX (Tectonic │
+└──────────────┘      │ in Docker)      │
+                      └─────────────────┘
+```
+
+**Key design point:** Next.js and n8n communicate via webhooks in both directions; the DB is the single source of truth. Heavy/slow work (scraping, LLM, PDF compile, schedules) never blocks a web request.
+
+---
+
+## 4. Free API Strategy (zero-cost replacements for paid services)
+
+### Job sources (adapter pattern — one file per source, common interface)
+
+| Source | Cost | Notes |
+|---|---|---|
+| RemoteOK `remoteok.com/api` | Free public JSON | Remote jobs, tags = skills |
+| Remotive `remotive.com/api/remote-jobs` | Free public JSON | Search + category filters |
+| Arbeitnow `arbeitnow.com/api/job-board-api` | Free public JSON | Global incl. visa-sponsored |
+| Adzuna `developer.adzuna.com` | Free key (~250/day) | India + global, salary data |
+| Jooble `jooble.org/api/about` | Free key on request | Big aggregator, India coverage |
+| Greenhouse `boards-api.greenhouse.io/v1/boards/{co}/jobs` | Free public | Direct company ATS |
+| Lever `api.lever.co/v0/postings/{co}` | Free public | Direct company ATS |
+| JSearch (RapidAPI) | Free tier ~200/mo | Google-for-Jobs aggregate; use sparingly |
+| HN Who's Hiring (Algolia) | Free public | Startup hiring threads |
+
+### Email finding pipeline (replaces Hunter/Apollo)
+
+```
+1. PATTERN DISCOVERY  scrape company /contact /about /team /careers pages,
+                      regex-extract emails → learn pattern ({first}.{l}@domain)
+2. CANDIDATES         recruiter name × patterns: first@, first.last@, firstlast@,
+                      f.last@ + role fallbacks: careers@, jobs@, hr@, talent@
+3. VERIFICATION       DNS MX lookup (dns.promises.resolveMx) + catch-all detection
+                      (SMTP RCPT-TO blocked on port 25 for most hosts — documented limitation)
+4. CONFIDENCE 0-100   found on site: 95 | name+discovered pattern: 80 |
+                      name+common pattern+MX ok: 60 | role fallback: 40
+```
+
+### Other free choices
+LaTeX: Tectonic (Docker) · Email: Gmail API · DB: Neon/Supabase free tier · n8n: self-hosted Docker · Hosting: Vercel free tier · LLM: Claude API is the ONLY paid dependency (isolated behind `lib/ai/` so provider is swappable).
+
+---
+
+## 5. Database Schema (Prisma — see `prisma/schema.prisma`)
+
+```
+users          id, email, gmailTokens(enc), sendMode(APPROVAL|AUTO), dailyEmailCap
+profiles       userId, parsedResume(json), targetRoles[], locations[], remoteOnly,
+               portfolioUrl, githubUrl, linkedinUrl, originalResumeKey
+jobs           title, company, companyDomain, location, remote, description,
+               salaryMin/Max, source(enum), sourceUrl, externalId, postedAt
+               → @@unique([source, externalId])  = DB-level dedupe
+applications   userId, jobId, status(enum), matchScore, atsScore,
+               tailoredResumeKey, tailoredResume(json)
+               → @@unique([userId, jobId])
+recruiters     applicationId, name, role, email, confidence, method, mxVerified
+emails         applicationId, type(COLD|FOLLOWUP_1|FOLLOWUP_2), subject, body,
+               idempotencyKey @unique  = retries can never double-send,
+               sentAt, gmailMessageId, gmailThreadId, repliedAt
+linkedin_msgs  applicationId, connectionNote, message, copiedAt
+application_events  append-only audit log → tracker timeline
+```
+
+Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWUP_1 → FOLLOWUP_2 → REPLIED → INTERVIEW → OFFER | REJECTED | NO_RESPONSE`
+
+---
+
+## 6. Rules & Constraints
+
+- **Never fabricate resume content** — tailoring = reorder + rephrase real experience only
+- **LinkedIn messages are manual** — no LinkedIn automation (ToS)
+- **Email limits**: default 20/day/user, random human-like delays, max 2 follow-ups
+- **User's own Gmail** for sending — we assist personal outreach, not bulk mail
+- Prefer official APIs; respect robots.txt + rate limits when scraping
+- Secrets only in env vars / n8n credentials; approval mode is the default
+
+---
+
+## 7. PHASE PLAN (build order — we work through this top to bottom)
+
+### ✅ Phase 1 — Foundation (DONE)
+- [x] Next.js 16 + TS + Tailwind scaffold, repo + GitHub
+- [x] Prisma 7 schema (all tables) + pg driver adapter + prisma.config.ts
+- [x] Core lib: zod env validation, prisma singleton, pino logger, AppError + apiHandler, safeFetch (timeout/retry/backoff/per-host delay)
+- [x] docker-compose: Postgres + n8n
+
+### ✅ Phase 2 — Job Discovery Engine (DONE)
+- [x] `JobSourceAdapter` interface + `NormalizedJob` type
+- [x] Adapters: RemoteOK, Remotive, Arbeitnow (free, no keys needed)
+- [x] Job scan service: parallel fetch (Promise.allSettled — one source failing never kills the scan), normalize, freshness filter, upsert dedupe
+- [x] `POST /api/jobs/scan` (secret-protected, n8n will call this) + `GET /api/jobs` (search/filter/paginate)
+- [x] Match scoring utility (skill/keyword overlap, 0–100, explainable)
+
+### Phase 3 — Auth + Profile + Resume Upload
+- [ ] NextAuth (Auth.js) with Google provider + Gmail scopes; Prisma adapter session storage
+- [ ] Resume upload (PDF/DOCX) → text extraction
+- [ ] Claude integration `lib/ai/`: parse resume → structured JSON (zod-validated)
+- [ ] Profile editor page (review parsed data, target roles, links, preferences)
+
+### Phase 4 — Resume Tailoring + LaTeX PDF
+- [ ] JD analysis prompt (extract keywords, skills, seniority)
+- [ ] Tailoring prompt (reorder/rephrase, no fabrication, structured output)
+- [ ] LaTeX template (`latex-templates/resume.tex`) + Tectonic compile service (Docker)
+- [ ] ATS score estimator (keyword coverage + format checks)
+- [ ] `POST /api/applications/:id/tailor` + n8n WF2
+
+### Phase 5 — Free Email Finder
+- [ ] Site scraper (contact/about/team/careers pages) + email regex + pattern learner
+- [ ] Candidate generator (name × patterns + role fallbacks)
+- [ ] MX verification + catch-all detection (`dns.promises`)
+- [ ] Confidence scoring + `POST /api/applications/:id/find-recruiter` + n8n WF3
+
+### Phase 6 — Cold Email + LinkedIn Messages
+- [ ] Gmail send via user's OAuth tokens (google-api client)
+- [ ] Email drafting prompt (template: hook/proof/links/CTA)
+- [ ] Approval flow UI (review → edit → send) + AUTO mode
+- [ ] Daily cap + human-like random send delays
+- [ ] LinkedIn message generator + copy-to-clipboard UI
+- [ ] n8n WF4
+
+### Phase 7 — Tracker + Follow-ups + Reply Detection
+- [ ] Status machine + ApplicationEvent logging on every transition
+- [ ] n8n WF5: daily follow-up cron (7 days, max 2) — idempotency keys
+- [ ] n8n WF6: reply detector (Gmail thread polling every 15m) → cancel follow-ups, notify
+- [ ] `POST /api/webhooks/n8n` callback endpoint (secret-verified)
+
+### Phase 8 — Dashboard UI
+- [ ] Job feed (match score badges, freshness, apply button)
+- [ ] Applications kanban/table + timeline drawer (from events)
+- [ ] Stats: sent/replied/response-rate, resumes gallery
+- [ ] Settings page (caps, mode, sources)
+
+### Phase 9 — Production Polish
+- [ ] Email verification hardening, A/B templates, skill-gap analysis
+- [ ] Notifications (Telegram/email)
+- [ ] Encrypt Gmail tokens at rest, security review
+- [ ] Deploy: Vercel (app) + VM/local (n8n + LaTeX), n8n workflow JSONs exported to `n8n/workflows/`
