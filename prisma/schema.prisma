@@ -1,0 +1,233 @@
+// AI Job Finder — database schema
+// Docs: see AGENTS.md section 6 (Database Schema)
+
+// Prisma 7: the TS `prisma-client` generator emits the client into our source
+// tree; the connection URL lives in prisma.config.ts (migrate) and in the
+// PrismaPg driver adapter (runtime) — not in this file.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ApplicationStatus {
+  FOUND
+  RESUME_READY
+  EMAIL_QUEUED
+  EMAIL_SENT
+  FOLLOWUP_1
+  FOLLOWUP_2
+  REPLIED
+  INTERVIEW
+  OFFER
+  REJECTED
+  NO_RESPONSE
+}
+
+enum EmailType {
+  COLD
+  FOLLOWUP_1
+  FOLLOWUP_2
+}
+
+enum SendMode {
+  APPROVAL // user reviews every email before it is sent (default)
+  AUTO     // platform sends automatically
+}
+
+enum JobSource {
+  REMOTEOK
+  REMOTIVE
+  ARBEITNOW
+  ADZUNA
+  JOOBLE
+  GREENHOUSE
+  LEVER
+  JSEARCH
+  HN_HIRING
+  MANUAL // user pasted a JD themselves
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  image         String?
+  // Gmail OAuth tokens (encrypted at rest by the app before storing)
+  gmailTokens   Json?
+  // user preferences
+  sendMode      SendMode @default(APPROVAL)
+  dailyEmailCap Int      @default(20)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  profile      Profile?
+  applications Application[]
+
+  @@map("users")
+}
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // structured resume extracted by the LLM (skills, experience, education, projects)
+  parsedResume Json?
+  // desired roles/keywords used by the job scanner, e.g. ["frontend developer", "react"]
+  targetRoles  String[] @default([])
+  locations    String[] @default([])
+  remoteOnly   Boolean  @default(false)
+
+  portfolioUrl String?
+  githubUrl    String?
+  linkedinUrl  String?
+
+  // storage key of the originally uploaded resume file
+  originalResumeKey String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  title         String
+  company       String
+  companyDomain String?
+  location      String?
+  remote        Boolean   @default(false)
+  description   String // full JD text
+  salaryMin     Int?
+  salaryMax     Int?
+  source        JobSource
+  sourceUrl     String
+  // stable identifier from the source, used for deduplication
+  externalId    String
+  postedAt      DateTime?
+  scrapedAt     DateTime  @default(now())
+
+  applications Application[]
+
+  // the same job must never be inserted twice from the same source
+  @@unique([source, externalId])
+  @@index([postedAt])
+  @@index([company])
+  @@map("jobs")
+}
+
+model Application {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId  String
+  job    Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  status     ApplicationStatus @default(FOUND)
+  // 0-100: how well the user's profile matches this JD
+  matchScore Int?
+  // 0-100: estimated ATS score of the tailored resume
+  atsScore   Int?
+
+  // storage key of the tailored PDF generated for this specific job
+  tailoredResumeKey String?
+  // the tailored resume content as structured JSON (fills the LaTeX template)
+  tailoredResume    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  recruiter       Recruiter?
+  emails          Email[]
+  linkedinMessage LinkedInMessage?
+  events          ApplicationEvent[]
+
+  // one application per user per job
+  @@unique([userId, jobId])
+  @@index([userId, status])
+  @@map("applications")
+}
+
+model Recruiter {
+  id            String      @id @default(cuid())
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  name        String?
+  role        String? // e.g. "Talent Acquisition", "Founder"
+  email       String
+  // 0-100 confidence from the free email-finding pipeline (see AGENTS.md 4.5)
+  confidence  Int
+  // how the email was derived: FOUND_ON_SITE | DISCOVERED_PATTERN | COMMON_PATTERN | ROLE_FALLBACK
+  method      String
+  mxVerified  Boolean @default(false)
+  linkedinUrl String?
+
+  createdAt DateTime @default(now())
+
+  @@map("recruiters")
+}
+
+model Email {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  type    EmailType
+  subject String
+  body    String
+
+  // idempotency: n8n retries must never double-send (see AGENTS.md 4.6 rule 9)
+  idempotencyKey String @unique
+
+  sentAt         DateTime?
+  gmailMessageId String?
+  gmailThreadId  String?
+  repliedAt      DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId, type])
+  @@map("emails")
+}
+
+model LinkedInMessage {
+  id            String      @id @default(cuid())
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  connectionNote String // short note sent with the connection request (300 char limit)
+  message        String // follow-up DM after connecting
+  copiedAt       DateTime? // when the user clicked "copy" (proxy for "sent manually")
+
+  createdAt DateTime @default(now())
+
+  @@map("linkedin_messages")
+}
+
+// Append-only audit log powering the tracker timeline on the dashboard
+model ApplicationEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  type      String // e.g. "STATUS_CHANGED", "EMAIL_SENT", "REPLY_DETECTED"
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([applicationId, createdAt])
+  @@map("application_events")
+}
