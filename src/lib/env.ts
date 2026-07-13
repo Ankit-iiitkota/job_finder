@@ -36,7 +36,11 @@ const envSchema = z.object({
   // LLM — Gemini free tier (see AGENTS.md 4.5: swapped from Claude so the
   // project has zero paid dependencies; free key: aistudio.google.com/apikey)
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  // "gemini-2.5-flash" is confirmed dead for new API keys (404 "no longer
+  // available to new users") as of this writing — Google's model lineup
+  // moves fast. The "-latest" alias tracks whatever Google currently
+  // recommends instead of a pinned version that can be deprecated under us.
+  GEMINI_MODEL: z.string().default("gemini-flash-latest"),
 
   // Free-tier job sources (all optional; adapters skip sources without keys)
   ADZUNA_APP_ID: z.string().optional(),

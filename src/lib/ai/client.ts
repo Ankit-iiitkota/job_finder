@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { ApiError, GoogleGenAI, type GenerateContentResponse } from "@google/genai";
 import { z } from "zod";
 import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
@@ -26,6 +26,54 @@ function getAiClient(): GoogleGenAI {
   return client;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Map a Gemini SDK error into our standard AppError envelope (AGENTS.md rule 5: no raw exceptions leak to API responses). */
+function toAppError(error: unknown): AppError {
+  if (!(error instanceof ApiError)) {
+    return new AppError("UPSTREAM_ERROR", "The AI request failed, please try again");
+  }
+  switch (error.status) {
+    case 429:
+      return new AppError(
+        "RATE_LIMITED",
+        "The AI is at its free-tier rate limit right now — please wait a moment and try again",
+      );
+    case 503:
+      return new AppError(
+        "UPSTREAM_ERROR",
+        "The AI service is temporarily overloaded — please try again shortly",
+      );
+    case 401:
+    case 403:
+      return new AppError("INTERNAL", "AI authentication failed — check GEMINI_API_KEY");
+    default:
+      return new AppError("UPSTREAM_ERROR", "The AI request failed, please try again");
+  }
+}
+
+const MAX_GENERATION_RETRIES = 2;
+
+/** 503 (transient overload) is worth a couple of quick retries; other errors fail immediately. */
+async function generateWithRetry(
+  ai: GoogleGenAI,
+  params: Parameters<GoogleGenAI["models"]["generateContent"]>[0],
+): Promise<GenerateContentResponse> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await ai.models.generateContent(params);
+    } catch (error) {
+      const retryable = error instanceof ApiError && error.status === 503;
+      if (!retryable || attempt >= MAX_GENERATION_RETRIES) throw toAppError(error);
+      const backoff = 1_000 * 2 ** attempt;
+      logger.warn({ attempt: attempt + 1, backoffMs: backoff }, "gemini overloaded, retrying");
+      await sleep(backoff);
+    }
+  }
+}
+
 /**
  * Structured-output helper: Zod schema -> Gemini's `responseJsonSchema`
  * (real JSON Schema support, not the older restricted `responseSchema`
@@ -44,7 +92,7 @@ export async function generateStructured<T>(options: {
 }): Promise<T> {
   const ai = getAiClient();
 
-  const response = await ai.models.generateContent({
+  const response = await generateWithRetry(ai, {
     model: AI_MODEL,
     contents: options.prompt,
     config: {
