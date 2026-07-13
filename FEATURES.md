@@ -167,7 +167,7 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] File storage adapter (`lib/storage.ts` — local disk now, S3/Supabase swappable; path-traversal guard)
 - [x] Profile service + `GET/PUT /api/profile` (target roles, locations, links, send mode, daily cap)
 - [x] UI: landing page with Google sign-in, `/profile` editor (upload → parsed skills preview → preferences form)
-- [ ] ⏳ DB migration pending — needs a running Postgres (Neon free tier or Docker); run `npx prisma migrate dev --name init` once DATABASE_URL points at a live DB
+- [x] Live database: Neon free-tier Postgres, `20260713193034_init` migration applied — all 12 tables verified, plus an end-to-end job scan confirmed writing real rows (`scripts/smoke-db.ts`)
 
 ### ✅ Phase 4 — Resume Tailoring + LaTeX PDF (DONE)
 - [x] Single-call JD analysis + tailoring (one LLM round trip = half the cost): structured output with keywords, seniority, tailored resume

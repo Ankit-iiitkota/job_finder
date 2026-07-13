@@ -100,6 +100,8 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **Skill-gap and A/B testing both cost zero extra AI calls** — skill-gap re-reads `jdAnalysis` already stored on every tailored application; A/B variant assignment is a deterministic hash of the application id (no experiments table, stable across redrafts).
 **Deployment story ties back to a Phase-4 decision.** The Dockerfile ships without a LaTeX binary on purpose — the local/remote compiler auto-detection built in Phase 4 means Vercel serverless (no Tectonic) and a VM (with Tectonic) run the identical code path with zero branching. Designing for graceful degradation early paid off at deploy time.
 
+**Live DB note:** Neon free-tier compute autosuspends when idle — the very first query after a gap times out while it wakes (a few seconds), then works normally. Not a bug; expected serverless-Postgres behavior, worth knowing before debugging a "random" first-request failure.
+
 ---
 
 ## Conventions
