@@ -1,7 +1,4 @@
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { AI_MODEL, getAiClient } from "@/lib/ai/client";
-import { AppError } from "@/lib/errors";
-import { logger } from "@/lib/logger";
+import { generateStructured } from "@/lib/ai/client";
 import type { ParsedResume } from "@/types/resume";
 import { tailoredResumeSchema, type TailoredResume } from "@/types/tailored-resume";
 
@@ -34,30 +31,16 @@ export async function tailorResume(
   profile: ParsedResume,
   job: { title: string; company: string; description: string },
 ): Promise<TailoredResume> {
-  const client = getAiClient();
+  const prompt = [
+    `# Job\nTitle: ${job.title}\nCompany: ${job.company}\n\n## Description\n${job.description}`,
+    `# Candidate profile (the ONLY source of truth)\n${JSON.stringify(profile, null, 2)}`,
+    `Analyze the JD, then produce the tailored resume.`,
+  ].join("\n\n---\n\n");
 
-  const response = await client.messages.parse({
-    model: AI_MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
+  return generateStructured({
     system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: [
-          `# Job\nTitle: ${job.title}\nCompany: ${job.company}\n\n## Description\n${job.description}`,
-          `# Candidate profile (the ONLY source of truth)\n${JSON.stringify(profile, null, 2)}`,
-          `Analyze the JD, then produce the tailored resume.`,
-        ].join("\n\n---\n\n"),
-      },
-    ],
-    output_config: { format: zodOutputFormat(tailoredResumeSchema) },
+    prompt,
+    schema: tailoredResumeSchema,
+    maxOutputTokens: 8192,
   });
-
-  if (response.stop_reason === "refusal" || !response.parsed_output) {
-    logger.error({ stop_reason: response.stop_reason }, "resume tailoring failed");
-    throw new AppError("UPSTREAM_ERROR", "Could not tailor the resume, please try again");
-  }
-
-  return response.parsed_output;
 }

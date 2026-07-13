@@ -21,7 +21,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Next.js 16 + TypeScript** — one codebase for UI + API, App Router, type safety
 - **PostgreSQL + Prisma 7** — relational fit (users→jobs→applications→emails); DB-level constraints do real work (dedupe, idempotency)
 - **n8n (self-hosted)** — orchestrates scraping/LLM/email schedules OUTSIDE the web request cycle; visual debugging, retries
-- **Claude API** — resume parsing/tailoring, email drafting (only paid dependency, isolated behind `lib/ai/` so it's swappable)
+- **Google Gemini (free tier)** — resume parsing/tailoring, email drafting; zero paid dependencies in the whole project (originally Claude — see Step 10, swapped behind `lib/ai/` without touching any prompt or schema)
 - **LaTeX (Tectonic)** — ATS-safe resume PDFs
 - **Gmail API** — send from user's own inbox (deliverability + authenticity), detect replies
 
@@ -62,7 +62,7 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 
 ### Step 3 — Auth + Profile + Resume Parsing ✅
 **Auth.js v5 + Google**: one consent grants sign-in AND Gmail scopes (`gmail.send`/`gmail.readonly`, `access_type=offline` + `prompt=consent` → refresh token saved on the Account row — no separate "connect Gmail" step later). Database sessions (revocable) via Prisma adapter.
-**Resume pipeline**: upload → text extraction (unpdf for PDF, mammoth for DOCX; detects scanned images by min text length) → Claude **structured outputs** (response is schema-constrained + Zod-validated — malformed LLM output is impossible downstream) → original stored via a swappable storage adapter (local disk now, S3 later; path-traversal guard on keys).
+**Resume pipeline**: upload → text extraction (unpdf for PDF, mammoth for DOCX; detects scanned images by min text length) → **structured outputs** (response is schema-constrained + Zod-validated — malformed LLM output is impossible downstream) → original stored via a swappable storage adapter (local disk now, S3 later; path-traversal guard on keys).
 **Interview line:** "The LLM prompt is extraction-only — same no-fabrication rule as tailoring — and I trust the schema, not the model: structured outputs + Zod validation at the boundary."
 
 ### Step 4 — Resume Tailoring + LaTeX PDF + ATS ✅
@@ -101,6 +101,12 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **Deployment story ties back to a Phase-4 decision.** The Dockerfile ships without a LaTeX binary on purpose — the local/remote compiler auto-detection built in Phase 4 means Vercel serverless (no Tectonic) and a VM (with Tectonic) run the identical code path with zero branching. Designing for graceful degradation early paid off at deploy time.
 
 **Live DB hardening — a real debugging story.** Wiring up Neon surfaced intermittent `ETIMEDOUT` on the first query after any idle gap. Before writing a fix I gathered evidence instead of guessing: a raw TCP connect loop (10/10 succeeded, ~275ms each) proved the network path was fine, which ruled out "bad internet/ISP" and pointed at the Postgres/pool layer instead — most likely Neon's free-tier compute autosuspending and leaving a pool connection that looks alive but isn't. Fix: (1) `dns.setDefaultResultOrder("ipv4first")` — Node can pick a slow/broken AAAA record over a fine A record, a known class of intermittent cloud-DB timeout; (2) a Prisma Client extension (`$allOperations`) that retries transient errors (`ETIMEDOUT`, `P1001/P1002/P1008/P1017`) with backoff — the exact same resilience pattern `safeFetch` already applies to HTTP, now applied at the query layer too. Net effect: a live server's persistent pool stays reliable under real traffic (verified: 3/3 clean requests once warm); the residual flakiness only shows up on a cold first connection after an idle gap, which is inherent to serverless Postgres free tiers and fades under continuous traffic. **The lesson, not just the fix:** get hard evidence (the TCP test) before reaching for a fix — "add a retry" is the right call here specifically because the diagnosis ruled out the alternatives first.
+
+### Step 10 — Swapped Claude for Gemini (zero paid dependencies) ✅
+**The provider boundary paid off exactly as designed.** `lib/ai/` was built in Step 3 specifically so the LLM could be swapped without touching business logic — this was the first time that bet got tested for real, and it held: swapping providers touched `lib/ai/client.ts` (rewritten) and three call sites (one-line changes each). Zero changes to any Zod schema, any prompt's business rules, or any service in `server/services/`.
+**Technical core of the swap:** Gemini's `responseJsonSchema` config field accepts real JSON Schema (not the older restricted OpenAPI-3.0 subset `responseSchema` uses) — so `z.toJSONSchema(schema)` (Zod v4's **native**, no-extra-dependency JSON Schema export) plugs straight in. Verified the exact field support by reading the installed SDK's `.d.ts` directly rather than trusting training-data memory of an API that changes often.
+**Defense-in-depth kept**: Gemini's structured output makes malformed JSON unlikely, not impossible, so the parsed result is Zod-`safeParse`d again after the API call — same "trust the schema, not the model" principle as the original Claude integration.
+**A real bug found and fixed en route**: `.env`'s `KEY=""` convention for "not set yet" crashed the app at boot — Zod's `.optional()` only treats `undefined` as absent, not empty string, so `LATEX_COMPILER=""` failed enum validation. Fixed once in the env loader (normalize `""` → `undefined` before parsing) rather than special-casing every field.
 
 ---
 

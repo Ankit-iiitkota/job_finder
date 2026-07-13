@@ -4,7 +4,7 @@ import { AppError } from "@/lib/errors";
 /**
  * Runaway-cost guard (FEATURES.md §9 security review): every LLM call in
  * this app is user-triggered, so a compromised session or a buggy retry
- * loop in the UI could otherwise generate unbounded Anthropic spend. Caps
+ * loop in the UI could otherwise burn through the free-tier daily quota. Caps
  * AI-triggering actions per user per day using the event log we already
  * write for the tracker timeline — no extra table needed.
  */

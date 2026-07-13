@@ -18,8 +18,10 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
-  // LLM (the single paid dependency — see AGENTS.md 4.5)
-  ANTHROPIC_API_KEY: z.string().optional(),
+  // LLM — Gemini free tier (see AGENTS.md 4.5: swapped from Claude so the
+  // project has zero paid dependencies; free key: aistudio.google.com/apikey)
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
 
   // Free-tier job sources (all optional; adapters skip sources without keys)
   ADZUNA_APP_ID: z.string().optional(),

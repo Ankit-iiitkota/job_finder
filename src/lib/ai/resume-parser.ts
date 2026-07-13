@@ -1,7 +1,4 @@
-import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { AI_MODEL, getAiClient } from "@/lib/ai/client";
-import { AppError } from "@/lib/errors";
-import { logger } from "@/lib/logger";
+import { generateStructured } from "@/lib/ai/client";
 import { parsedResumeSchema, type ParsedResume } from "@/types/resume";
 
 /**
@@ -9,8 +6,8 @@ import { parsedResumeSchema, type ParsedResume } from "@/types/resume";
  *
  * EXTRACTION ONLY: the prompt forbids inventing/normalizing content — the
  * same no-fabrication rule that governs tailoring (FEATURES.md §6). Output
- * is schema-constrained (structured outputs) and validated by Zod, so
- * downstream code never sees malformed data.
+ * is schema-constrained (Gemini responseJsonSchema) and re-validated by
+ * Zod, so downstream code never sees malformed data.
  */
 const SYSTEM_PROMPT = `You extract structured data from resumes.
 
@@ -23,26 +20,10 @@ Rules:
   anywhere in the resume (including inside experience/project bullets).`;
 
 export async function parseResume(resumeText: string): Promise<ParsedResume> {
-  const client = getAiClient();
-
-  const response = await client.messages.parse({
-    model: AI_MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
+  return generateStructured({
     system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: `Extract the structured profile from this resume:\n\n${resumeText}`,
-      },
-    ],
-    output_config: { format: zodOutputFormat(parsedResumeSchema) },
+    prompt: `Extract the structured profile from this resume:\n\n${resumeText}`,
+    schema: parsedResumeSchema,
+    maxOutputTokens: 8192,
   });
-
-  if (response.stop_reason === "refusal" || !response.parsed_output) {
-    logger.error({ stop_reason: response.stop_reason }, "resume parsing failed");
-    throw new AppError("UPSTREAM_ERROR", "Could not parse the resume, please try again");
-  }
-
-  return response.parsed_output;
 }
