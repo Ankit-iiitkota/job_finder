@@ -196,7 +196,7 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] Daily cap enforced at send time (default 20/day, RATE_LIMITED error) — protects Gmail sender reputation
 - [x] Already-sent guard (CONFLICT) + idempotency key `applicationId:COLD`
 - [x] `POST /:id/linkedin-copied` — records manual LinkedIn send for the tracker
-- [ ] Approval screen UI → Phase 8 dashboard; human-like random delays between auto-sends → n8n WF4 (Phase 7)
+- [x] Approval screen UI → built in Phase 8; human-like random delays between auto-sends → n8n WF4 (Phase 7, done)
 
 ### ✅ Phase 7 — Tracker + Follow-ups + Reply Detection + n8n (DONE)
 - [x] Follow-up engine: 7-day ladder EMAIL_SENT→FOLLOWUP_1→FOLLOWUP_2→NO_RESPONSE; **templated, not AI-drafted** (a bump email is formulaic — zero tokens, zero hallucination risk); threaded via `gmailThreadId` + "Re:" subject
@@ -208,11 +208,14 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] `POST /api/followups/run`, `POST /api/replies/check` — secret-protected, safe to re-run
 - [x] **n8n workflows exported as version-controlled JSON** (`n8n/workflows/`): WF1 job scanner (2h cron), WF2 tailor→find-recruiter chain (webhook), WF4 draft→conditional-send respecting APPROVAL/AUTO mode (webhook), WF5 follow-up cron (daily), WF6 reply-check cron (15min). WF3 folded into WF2.
 
-### Phase 8 — Dashboard UI
-- [ ] Job feed (match score badges, freshness, apply button)
-- [ ] Applications kanban/table + timeline drawer (from events)
-- [ ] Stats: sent/replied/response-rate, resumes gallery
-- [ ] Settings page (caps, mode, sources)
+### ✅ Phase 8 — Dashboard UI (DONE)
+- [x] Shared server-rendered nav (reads session directly, no client fetch) + StatusBadge/StatCard primitives
+- [x] Dashboard home: 8 stat cards (jobs today/week, active applications, resumes, emails sent, replies, response rate, LinkedIn sent) + pipeline breakdown by status
+- [x] `listJobs`/`listApplications`/`getApplicationDetail` extracted into services — pages call them directly server-side (no internal HTTP round-trip); API routes reuse the same services for client-side fetches (DRY, single source of truth)
+- [x] Job feed: server-rendered filters (search/source/remote) via plain GET form (works without JS), Apply button (client) → creates application → redirects to detail
+- [x] Applications table: status badges, match/ATS scores, links to detail
+- [x] Application detail = the full approval screen: Tailor Resume (shows ATS score + missing keywords) → Find Recruiter (confidence + alternates) → Draft Outreach with AI → **editable** subject/body → Send (respects daily cap, shows sent/replied state) → LinkedIn copy buttons (records `copiedAt`) → event timeline, all in one page with optimistic refetch after each action
+- [x] Settings already covered by the `/profile` page from Phase 3 (send mode, daily cap, links)
 
 ### Phase 9 — Production Polish
 - [ ] Email verification hardening, A/B templates, skill-gap analysis

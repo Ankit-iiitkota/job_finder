@@ -89,6 +89,11 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **Reply detection cancels the ladder:** polls Gmail threads for sent-but-unanswered emails; any thread message not from the user is a reply → `repliedAt` stamped, unsent follow-up rows **deleted** (never bump someone who already answered), status → REPLIED. Grouped per user so each user's Gmail token is fetched once, not once per email.
 **n8n workflows live in the repo, not just the n8n UI** — `n8n/workflows/*.json`, importable and diffable. Cron ownership is 100% n8n's job; the app only exposes stateless, secret-protected, idempotent endpoints. This split is the answer to "why n8n and not your own scheduler."
 
+### Step 8 — Dashboard ✅
+**Services power both server-rendered pages AND API routes** — `listJobs`/`listApplications`/`getApplicationDetail` live in `src/server/services/`; the jobs/applications/detail pages call them directly (server component → straight DB read, zero network hop), while the matching API routes call the *same* function for client-side fetches after a mutation. One implementation, two callers, impossible to drift out of sync.
+**The detail page IS the approval screen** — tailor → find recruiter → AI-draft → edit → send → copy LinkedIn, all on one page, each action refetching the full record afterward so the UI never holds stale derived state. Simpler than hand-rolled optimistic updates, correct by construction.
+**Progressive enhancement where it's free** — the job filters are a plain `<form method="get">`; filtering works even with JS disabled, and the URL is shareable/bookmarkable. Only truly interactive things (Apply, Tailor, Send, Copy) are client components.
+
 ---
 
 ## Conventions
