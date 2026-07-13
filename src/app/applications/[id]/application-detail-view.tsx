@@ -40,9 +40,12 @@ export function ApplicationDetailView({ initial }: { initial: ApplicationDetail 
   );
   const [body, setBody] = useState(app.emails.find((e) => e.type === "COLD")?.body ?? "");
 
-  async function refresh() {
+  async function refresh(): Promise<ApplicationDetail | null> {
     const response = await fetch(`/api/applications/${app.id}`);
-    if (response.ok) setApp((await response.json()) as ApplicationDetail);
+    if (!response.ok) return null;
+    const updated = (await response.json()) as ApplicationDetail;
+    setApp(updated);
+    return updated;
   }
 
   async function run(kind: Exclude<Busy, null>, request: () => Promise<Response>) {
@@ -93,7 +96,15 @@ export function ApplicationDetailView({ initial }: { initial: ApplicationDetail 
       fetch(`/api/applications/${app.id}/outreach`, { method: "POST" }),
     );
     if (!response) return;
-    await refresh();
+    // subject/body are separate editable state (so the user's own edits
+    // aren't clobbered by every refresh) — they only need to be
+    // re-synced here, right after a fresh AI draft actually lands.
+    const updated = await refresh();
+    const cold = updated?.emails.find((e) => e.type === "COLD");
+    if (cold) {
+      setSubject(cold.subject);
+      setBody(cold.body);
+    }
     setMessage({ kind: "ok", text: "Outreach drafted — review and send below." });
   }
 

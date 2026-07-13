@@ -15,7 +15,15 @@ import { logger } from "@/lib/logger";
  */
 const RETRYABLE_CODES = new Set(["P1001", "P1002", "P1008", "P1017"]);
 const RETRYABLE_ERROR_CODES = new Set(["ETIMEDOUT", "ECONNRESET", "ECONNREFUSED"]);
-const MAX_QUERY_RETRIES = 4; // ~4.5s worst-case budget (300/600/1200/2400ms) — this network's observed flakiness needs more than 2 attempts
+// 6 attempts, backoff capped at 3s: observed live that a burst of many
+// concurrent page loads (e.g. several dashboard/application requests firing
+// at once right as Neon's compute wakes from autosuspend) can exhaust 4
+// retries — NextAuth's own session lookup failed this way and surfaced as a
+// false "unauthorized". Capping backoff (rather than letting 2^attempt grow
+// unbounded) keeps the worst case bounded (~13s) instead of tending to
+// something absurd as attempts increase.
+const MAX_QUERY_RETRIES = 6;
+const MAX_BACKOFF_MS = 3_000;
 
 function isTransientDbError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;
@@ -52,7 +60,7 @@ function createClient() {
             return await query(args);
           } catch (error) {
             if (attempt >= MAX_QUERY_RETRIES || !isTransientDbError(error)) throw error;
-            const backoff = 300 * 2 ** attempt;
+            const backoff = Math.min(300 * 2 ** attempt, MAX_BACKOFF_MS);
             logger.warn(
               { model, operation, attempt: attempt + 1, backoffMs: backoff },
               "transient DB error, retrying",
