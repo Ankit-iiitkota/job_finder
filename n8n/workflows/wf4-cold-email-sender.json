@@ -1,0 +1,85 @@
+{
+  "name": "WF4 - Cold Email Sender (AUTO mode only)",
+  "nodes": [
+    {
+      "parameters": { "path": "send-outreach", "httpMethod": "POST", "authentication": "none" },
+      "name": "Webhook: recruiter found",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "send-outreach"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL }}/api/applications/{{ $json.body.applicationId }}/outreach",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-webhook-secret", "value": "={{ $env.N8N_CALLBACK_SECRET }}" }]
+        },
+        "options": { "timeout": 60000 }
+      },
+      "name": "POST /outreach (draft)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.sendMode }}",
+              "rightValue": "AUTO",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "name": "IF user.sendMode = AUTO",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [520, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL }}/api/applications/{{ $('Webhook: recruiter found').item.json.body.applicationId }}/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-webhook-secret", "value": "={{ $env.N8N_CALLBACK_SECRET }}" }]
+        },
+        "options": { "timeout": 60000 }
+      },
+      "name": "POST /send",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, -80]
+    },
+    {
+      "parameters": { "amount": 1, "unit": "seconds" },
+      "name": "Wait (approval mode: notify user instead)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [780, 80]
+    }
+  ],
+  "connections": {
+    "Webhook: recruiter found": {
+      "main": [[{ "node": "POST /outreach (draft)", "type": "main", "index": 0 }]]
+    },
+    "POST /outreach (draft)": {
+      "main": [[{ "node": "IF user.sendMode = AUTO", "type": "main", "index": 0 }]]
+    },
+    "IF user.sendMode = AUTO": {
+      "main": [
+        [{ "node": "POST /send", "type": "main", "index": 0 }],
+        [{ "node": "Wait (approval mode: notify user instead)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "notes": "AUTO mode sends immediately after drafting. APPROVAL mode (default) stops here — the user sends from the dashboard's approval screen. Daily cap + already-sent guards live server-side regardless of trigger source."
+}

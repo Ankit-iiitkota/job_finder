@@ -198,11 +198,15 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] `POST /:id/linkedin-copied` — records manual LinkedIn send for the tracker
 - [ ] Approval screen UI → Phase 8 dashboard; human-like random delays between auto-sends → n8n WF4 (Phase 7)
 
-### Phase 7 — Tracker + Follow-ups + Reply Detection
-- [ ] Status machine + ApplicationEvent logging on every transition
-- [ ] n8n WF5: daily follow-up cron (7 days, max 2) — idempotency keys
-- [ ] n8n WF6: reply detector (Gmail thread polling every 15m) → cancel follow-ups, notify
-- [ ] `POST /api/webhooks/n8n` callback endpoint (secret-verified)
+### ✅ Phase 7 — Tracker + Follow-ups + Reply Detection + n8n (DONE)
+- [x] Follow-up engine: 7-day ladder EMAIL_SENT→FOLLOWUP_1→FOLLOWUP_2→NO_RESPONSE; **templated, not AI-drafted** (a bump email is formulaic — zero tokens, zero hallucination risk); threaded via `gmailThreadId` + "Re:" subject
+- [x] Idempotent by construction: email row created (sentAt=null) BEFORE the Gmail call — a crash mid-send leaves a resumable row, not a duplicate
+- [x] Batch-limited (20/run) + random jitter (1-4s) between sends — same anti-burst posture as cold email
+- [x] Reply detector: polls Gmail threads for sent-but-unanswered emails every ~15min; any message not from the user = reply; stamps `repliedAt`, **deletes unsent follow-up rows** (ladder cancelled), status → REPLIED
+- [x] Grouped per user (one Gmail token fetch per user, not per email) — batch efficiency
+- [x] `GET /api/applications/:id` — full detail + append-only event timeline for the tracker drawer
+- [x] `POST /api/followups/run`, `POST /api/replies/check` — secret-protected, safe to re-run
+- [x] **n8n workflows exported as version-controlled JSON** (`n8n/workflows/`): WF1 job scanner (2h cron), WF2 tailor→find-recruiter chain (webhook), WF4 draft→conditional-send respecting APPROVAL/AUTO mode (webhook), WF5 follow-up cron (daily), WF6 reply-check cron (15min). WF3 folded into WF2.
 
 ### Phase 8 — Dashboard UI
 - [ ] Job feed (match score badges, freshness, apply button)

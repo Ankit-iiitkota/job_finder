@@ -83,6 +83,12 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **Approval-first flow:** AI drafts the whole kit in one call (email + LinkedIn note + DM, one voice); the user reviews and can edit; their edits override the draft at send time. Daily cap checked at send (RATE_LIMITED), already-sent guard (CONFLICT).
 **Prompt quality detail:** the drafter has a banned-phrase list ("I hope this email finds you well", "passionate", flattery) and a hard structure: hook → 2-3 real proof points mapped to the JD → links → low-friction CTA, under 150 words.
 
+### Step 7 — Tracker + Follow-ups + Reply Detection + n8n ✅
+**Follow-ups are templates, not AI** — a deliberate choice, and a good one to defend: a bump email is formulaic by nature, so a template costs zero tokens and can't hallucinate. AI earns its keep on the first email (needs real personalization); follow-ups don't.
+**Idempotent by construction:** the follow-up email row is created with `sentAt: null` BEFORE the Gmail call, keyed by `applicationId:FOLLOWUP_1`. If the process crashes between create and send, the next cron run finds a resumable row instead of creating a duplicate — same pattern that makes the whole system retry-safe.
+**Reply detection cancels the ladder:** polls Gmail threads for sent-but-unanswered emails; any thread message not from the user is a reply → `repliedAt` stamped, unsent follow-up rows **deleted** (never bump someone who already answered), status → REPLIED. Grouped per user so each user's Gmail token is fetched once, not once per email.
+**n8n workflows live in the repo, not just the n8n UI** — `n8n/workflows/*.json`, importable and diffable. Cron ownership is 100% n8n's job; the app only exposes stateless, secret-protected, idempotent endpoints. This split is the answer to "why n8n and not your own scheduler."
+
 ---
 
 ## Conventions

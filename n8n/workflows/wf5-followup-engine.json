@@ -1,0 +1,32 @@
+{
+  "name": "WF5 - Follow-up Engine",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "days", "daysInterval": 1, "triggerAtHour": 9 }] } },
+      "name": "Daily at 9am",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL }}/api/followups/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-webhook-secret", "value": "={{ $env.N8N_CALLBACK_SECRET }}" }]
+        },
+        "options": { "timeout": 180000 }
+      },
+      "name": "POST /api/followups/run",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    }
+  ],
+  "connections": {
+    "Daily at 9am": { "main": [[{ "node": "POST /api/followups/run", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "notes": "7-day ladder (EMAIL_SENT -> FOLLOWUP_1 -> FOLLOWUP_2 -> NO_RESPONSE) is computed server-side; this workflow only triggers the run and is idempotent (safe to re-run or retry)."
+}

@@ -1,0 +1,55 @@
+{
+  "name": "WF2 - Resume Tailor (AUTO mode)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "resume-tailor",
+        "httpMethod": "POST",
+        "authentication": "none",
+        "options": {}
+      },
+      "name": "Webhook: application created",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "resume-tailor"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL }}/api/applications/{{ $json.body.applicationId }}/tailor",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-webhook-secret", "value": "={{ $env.N8N_CALLBACK_SECRET }}" }]
+        },
+        "options": { "timeout": 60000 }
+      },
+      "name": "POST /tailor",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.APP_BASE_URL }}/api/applications/{{ $('Webhook: application created').item.json.body.applicationId }}/find-recruiter",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "x-webhook-secret", "value": "={{ $env.N8N_CALLBACK_SECRET }}" }]
+        },
+        "options": { "timeout": 60000 }
+      },
+      "name": "POST /find-recruiter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 0]
+    }
+  ],
+  "connections": {
+    "Webhook: application created": {
+      "main": [[{ "node": "POST /tailor", "type": "main", "index": 0 }]]
+    },
+    "POST /tailor": { "main": [[{ "node": "POST /find-recruiter", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
