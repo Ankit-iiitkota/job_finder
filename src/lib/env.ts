@@ -42,7 +42,16 @@ const envSchema = z.object({
 export type Env = z.infer<typeof envSchema>;
 
 function loadEnv(): Env {
-  const parsed = envSchema.safeParse(process.env);
+  // Treat empty-string env vars as "unset". `.env.example`'s convention for
+  // "no value yet" is `KEY=""`, which Zod's `.optional()` only recognizes
+  // as absent for plain strings — an empty string still fails `.enum()` and
+  // `.url()` validation. Normalizing here fixes the whole schema at once
+  // instead of special-casing every non-string optional field.
+  const withEmptyAsUnset = Object.fromEntries(
+    Object.entries(process.env).map(([key, value]) => [key, value === "" ? undefined : value]),
+  );
+
+  const parsed = envSchema.safeParse(withEmptyAsUnset);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
