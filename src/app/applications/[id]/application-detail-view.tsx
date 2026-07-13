@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ApplicationDetail } from "@/server/services/application-detail";
 import { StatusBadge } from "@/components/status-badge";
+import { readError } from "@/lib/read-error";
 
 interface TailorResult {
   atsScore: number;
@@ -16,15 +17,6 @@ interface FindRecruiterResult {
 }
 
 type Busy = null | "tailor" | "recruiter" | "draft" | "send";
-
-async function readError(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: { message?: string } };
-    return body.error?.message ?? `Request failed (${response.status})`;
-  } catch {
-    return `Request failed (${response.status})`;
-  }
-}
 
 const sectionClass = "rounded-xl border border-zinc-200 p-6 dark:border-zinc-800";
 const btnPrimary =

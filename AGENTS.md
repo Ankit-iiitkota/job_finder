@@ -127,6 +127,10 @@ Plugging in a real Gemini key immediately surfaced two account-level facts (not 
 - **A rare `400 json_validate_failed` (empty `failed_generation`, no detail to act on) reproduced once under back-to-back rapid testing and succeeded immediately on retry** — added it to the retryable-error set alongside 5xx, the same "retry transient, fail fast on permanent" split used everywhere else in this codebase (`safeFetch`, the Prisma extension, and Step 12's Gemini error mapping).
 **What stayed true across both swaps:** every fabrication rule, every Zod schema, every prompt's business logic — untouched. Verified live with a 3-call, 8-check smoke test (parse → tailor → draft) hitting the real Groq API, including the specific check that mattered most: the tailored resume's company field still matched the master profile exactly.
 
+### Step 14 — Live bug: profile URL fields, and a UI-wide error-swallowing gap ✅
+A screenshot from real usage showed "Validation failed" with zero detail — pasting `github.com/x` (no scheme) into the GitHub field failed `z.url()`, which requires a full URL. Real fix: `looseUrl()` (`lib/zod-helpers.ts`) prepends `https://` when no scheme is present before validating — matches how users actually type these fields, not how the placeholder implies they should.
+**The more valuable find was underneath it**: the API already returns per-field validation `details` (`{path, message}[]`) on every 400, but all three client components that call `fetch()` had their own copy-pasted `readError()` that only read the generic top-level `message`, silently discarding the field detail that would have told the user exactly what was wrong. Extracted one shared `lib/read-error.ts` and pointed all three at it — one fix instead of three, and future components get the detailed version for free.
+
 ---
 
 ## Conventions

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ParsedResume } from "@/types/resume";
+import { readError } from "@/lib/read-error";
 
 export interface ProfileFormData {
   name: string | null;
@@ -23,15 +24,6 @@ type Status =
   | { kind: "busy"; message: string }
   | { kind: "ok"; message: string }
   | { kind: "error"; message: string };
-
-async function readError(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: { message?: string } };
-    return body.error?.message ?? `Request failed (${response.status})`;
-  } catch {
-    return `Request failed (${response.status})`;
-  }
-}
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:border-zinc-500 dark:border-zinc-700";
