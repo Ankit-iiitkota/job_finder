@@ -22,6 +22,7 @@ export default async function ProfilePage() {
     portfolioUrl: data.profile?.portfolioUrl ?? null,
     githubUrl: data.profile?.githubUrl ?? null,
     linkedinUrl: data.profile?.linkedinUrl ?? null,
+    telegramChatId: data.telegramChatId,
     parsedResume: parsed.success ? parsed.data : null,
   };
 

@@ -3,6 +3,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { withEncryptedTokens } from "@/server/encrypting-adapter";
 
 /**
  * Auth.js v5 — Google sign-in that ALSO grants Gmail scopes, so the same
@@ -15,7 +16,7 @@ import { env } from "@/lib/env";
  *   expose `user.id` for services.
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(db),
+  adapter: withEncryptedTokens(PrismaAdapter(db)),
   secret: env.AUTH_SECRET,
   trustHost: true,
   session: { strategy: "database" },

@@ -47,22 +47,32 @@ Rules for LinkedIn:
 - connectionNote: under 280 characters, mentions the specific role, friendly not desperate.
 - message: under 90 words, assumes they accepted, complements (not repeats) the email.`;
 
+const VARIANT_STYLE: Record<"concise" | "warm", string> = {
+  concise:
+    "Tone for this draft: CONCISE. Short sentences, get to the point fast, minimal adjectives — the version someone reads in 10 seconds.",
+  warm:
+    "Tone for this draft: WARM. A touch more personality and specific enthusiasm about the company/role, while staying professional and still under the word limits.",
+};
+
 export interface DraftContext {
   candidate: ParsedResume;
   tailored: TailoredResume;
   job: { title: string; company: string };
   recruiterName: string | null;
   links: { portfolio: string | null; github: string | null };
+  /** A/B test bucket (server/ab-testing.ts) — same application always gets the same variant. */
+  variant?: "concise" | "warm";
 }
 
 export async function draftOutreach(context: DraftContext): Promise<OutreachDraft> {
   const client = getAiClient();
+  const variant = context.variant ?? "concise";
 
   const response = await client.messages.parse({
     model: AI_MODEL,
     max_tokens: 4000,
     thinking: { type: "adaptive" },
-    system: SYSTEM_PROMPT,
+    system: `${SYSTEM_PROMPT}\n\n${VARIANT_STYLE[variant]}`,
     messages: [
       {
         role: "user",

@@ -15,27 +15,29 @@ export const profileUpdateSchema = z.object({
   // user-level outreach preferences
   sendMode: z.enum(SendMode).optional(),
   dailyEmailCap: z.number().int().min(1).max(50).optional(),
+  // Telegram notifications (FEATURES.md upgrade F8) — empty string clears it
+  telegramChatId: z.string().trim().max(40).nullable().optional(),
 });
 
 export type ProfileUpdate = z.infer<typeof profileUpdateSchema>;
 
+const USER_SELECT = {
+  email: true,
+  name: true,
+  sendMode: true,
+  dailyEmailCap: true,
+  telegramChatId: true,
+  profile: true,
+} as const;
+
 export async function getProfileWithPrefs(userId: string) {
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: {
-      email: true,
-      name: true,
-      sendMode: true,
-      dailyEmailCap: true,
-      profile: true,
-    },
-  });
+  const user = await db.user.findUnique({ where: { id: userId }, select: USER_SELECT });
   if (!user) throw new AppError("NOT_FOUND", "User not found");
   return user;
 }
 
 export async function updateProfile(userId: string, input: ProfileUpdate) {
-  const { sendMode, dailyEmailCap, ...profileFields } = input;
+  const { sendMode, dailyEmailCap, telegramChatId, ...profileFields } = input;
 
   const [, user] = await db.$transaction([
     db.profile.upsert({
@@ -48,14 +50,9 @@ export async function updateProfile(userId: string, input: ProfileUpdate) {
       data: {
         ...(sendMode && { sendMode }),
         ...(dailyEmailCap && { dailyEmailCap }),
+        ...(telegramChatId !== undefined && { telegramChatId: telegramChatId || null }),
       },
-      select: {
-        email: true,
-        name: true,
-        sendMode: true,
-        dailyEmailCap: true,
-        profile: true,
-      },
+      select: USER_SELECT,
     }),
   ]);
 

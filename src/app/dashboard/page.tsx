@@ -2,13 +2,19 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { getDashboardStats } from "@/server/services/dashboard";
+import { getSkillGap } from "@/server/services/skill-gap";
+import { getEmailVariantStats } from "@/server/services/ab-testing";
 import { StatCard } from "@/components/stat-card";
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/");
 
-  const stats = await getDashboardStats(session.user.id);
+  const [stats, skillGap, variants] = await Promise.all([
+    getDashboardStats(session.user.id),
+    getSkillGap(session.user.id),
+    getEmailVariantStats(session.user.id),
+  ]);
   const active =
     stats.applications.total -
     (stats.applications.byStatus.REJECTED ?? 0) -
@@ -76,6 +82,50 @@ export default async function DashboardPage() {
           </p>
         </div>
       )}
+
+      <div className="mt-8 grid gap-6 sm:grid-cols-2">
+        {skillGap.length > 0 && (
+          <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+            <h2 className="mb-1 text-lg font-semibold">Skill gap</h2>
+            <p className="mb-4 text-xs text-zinc-500">
+              Skills that keep appearing in job descriptions but aren&apos;t on your resume.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {skillGap.map((s) => (
+                <span
+                  key={s.skill}
+                  className="rounded-full bg-amber-100 px-2.5 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                >
+                  {s.skill} <span className="opacity-60">×{s.missingCount}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {variants.length > 0 && (
+          <div className="rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
+            <h2 className="mb-1 text-lg font-semibold">Email A/B test</h2>
+            <p className="mb-4 text-xs text-zinc-500">
+              Reply rate by tone variant — the platform auto-assigns each application a bucket.
+            </p>
+            <table className="w-full text-sm">
+              <tbody>
+                {variants.map((v, i) => (
+                  <tr key={v.variant} className={i === 0 && v.sent > 0 ? "font-semibold" : ""}>
+                    <td className="py-1 capitalize">
+                      {v.variant} {i === 0 && v.sent > 0 && "🏆"}
+                    </td>
+                    <td className="py-1 text-right text-zinc-500">{v.sent} sent</td>
+                    <td className="py-1 text-right text-zinc-500">{v.replied} replied</td>
+                    <td className="py-1 text-right">{Math.round(v.replyRate * 100)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </main>
   );
 }

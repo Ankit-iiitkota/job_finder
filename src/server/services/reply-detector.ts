@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { safeFetch } from "@/lib/http";
 import { getGmailAccessToken } from "@/lib/gmail";
 import { transitionStatus } from "@/server/services/events";
+import { notifyUser } from "@/server/services/notifications";
 
 /**
  * Reply detector (FEATURES.md F7) — invoked every ~15 min by n8n WF6.
@@ -59,7 +60,12 @@ export async function detectReplies(): Promise<ReplyRunResult> {
     take: MAX_THREADS_PER_RUN,
     include: {
       application: {
-        select: { id: true, userId: true, user: { select: { email: true } } },
+        select: {
+          id: true,
+          userId: true,
+          user: { select: { email: true } },
+          job: { select: { title: true, company: true } },
+        },
       },
     },
   });
@@ -117,6 +123,10 @@ export async function detectReplies(): Promise<ReplyRunResult> {
           type: "REPLY_DETECTED",
           payload: { threadId: email.gmailThreadId },
         });
+        await notifyUser(
+          userId,
+          `🎉 Reply received for <b>${email.application.job.title}</b> at ${email.application.job.company}!`,
+        );
 
         result.repliesFound++;
         result.followupsCancelled += cancelled.count;

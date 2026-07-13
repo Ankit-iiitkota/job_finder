@@ -1,0 +1,9 @@
+node_modules
+.next
+var
+.git
+.env
+.env.local
+*.log
+scripts
+n8n

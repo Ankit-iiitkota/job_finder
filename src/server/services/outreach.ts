@@ -4,6 +4,8 @@ import { logger } from "@/lib/logger";
 import { storage } from "@/lib/storage";
 import { sendGmail } from "@/lib/gmail";
 import { draftOutreach, type OutreachDraft } from "@/lib/ai/email-drafter";
+import { assignEmailVariant } from "@/server/services/ab-testing";
+import { assertAiCallBudget } from "@/server/services/ai-usage-guard";
 import { logEvent, transitionStatus } from "@/server/services/events";
 import { parsedResumeSchema } from "@/types/resume";
 import { tailoredResumeSchema } from "@/types/tailored-resume";
@@ -43,6 +45,9 @@ export async function draftApplicationOutreach(userId: string, applicationId: st
     throw new AppError("BAD_REQUEST", "No master profile — upload your resume first");
   }
 
+  await assertAiCallBudget(userId);
+  const variant = assignEmailVariant(applicationId);
+
   const draft: OutreachDraft = await draftOutreach({
     candidate: candidate.data,
     tailored: tailored.data,
@@ -52,6 +57,7 @@ export async function draftApplicationOutreach(userId: string, applicationId: st
       portfolio: application.user.profile?.portfolioUrl ?? null,
       github: application.user.profile?.githubUrl ?? null,
     },
+    variant,
   });
 
   // idempotencyKey makes "draft twice" an update, never a duplicate row
@@ -63,9 +69,10 @@ export async function draftApplicationOutreach(userId: string, applicationId: st
         type: "COLD",
         subject: draft.email.subject,
         body: draft.email.body,
+        variant,
         idempotencyKey: `${applicationId}:COLD`,
       },
-      update: { subject: draft.email.subject, body: draft.email.body },
+      update: { subject: draft.email.subject, body: draft.email.body, variant },
     }),
     db.linkedInMessage.upsert({
       where: { applicationId },

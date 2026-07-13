@@ -6,6 +6,7 @@ import { tailorResume } from "@/lib/ai/resume-tailor";
 import { computeMatchScore } from "@/server/jobs/match";
 import { compileLatexToPdf } from "@/server/latex/compile";
 import { renderResumeTex } from "@/server/latex/render-resume";
+import { assertAiCallBudget } from "@/server/services/ai-usage-guard";
 import { scoreAts, type AtsReport } from "@/server/services/ats";
 import { logEvent, transitionStatus } from "@/server/services/events";
 import { parsedResumeSchema, type ParsedResume } from "@/types/resume";
@@ -89,6 +90,7 @@ export async function tailorApplication(
   });
   if (!application) throw new AppError("NOT_FOUND", "Application not found");
 
+  await assertAiCallBudget(userId);
   const master = await getMasterProfile(userId);
 
   const tailored = await tailorResume(master, {

@@ -94,6 +94,12 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 **The detail page IS the approval screen** — tailor → find recruiter → AI-draft → edit → send → copy LinkedIn, all on one page, each action refetching the full record afterward so the UI never holds stale derived state. Simpler than hand-rolled optimistic updates, correct by construction.
 **Progressive enhancement where it's free** — the job filters are a plain `<form method="get">`; filtering works even with JS disabled, and the URL is shareable/bookmarkable. Only truly interactive things (Apply, Tailor, Send, Copy) are client components.
 
+### Step 9 — Production Polish ✅ (final phase — all 9 phases complete)
+**Token encryption at exactly two boundaries.** Gmail OAuth tokens are AES-256-GCM encrypted at rest. Rather than encrypting/decrypting scattered across the codebase, I found the two places that actually touch tokens — the Auth.js adapter's `linkAccount` (write, on sign-in) and `getGmailAccessToken` (read + refresh-write) — and wrapped only those. An `isEncrypted()` guard makes it a safe rollout with no migration script: legacy plaintext rows still decrypt-passthrough correctly.
+**Cost guard is a reused table, not a new one.** `assertAiCallBudget` caps LLM-triggering actions per user/day by counting rows already written to the audit-log table from Phase 4/7 — same principle as everywhere else in this project: don't add infrastructure a feature can borrow from an existing one.
+**Skill-gap and A/B testing both cost zero extra AI calls** — skill-gap re-reads `jdAnalysis` already stored on every tailored application; A/B variant assignment is a deterministic hash of the application id (no experiments table, stable across redrafts).
+**Deployment story ties back to a Phase-4 decision.** The Dockerfile ships without a LaTeX binary on purpose — the local/remote compiler auto-detection built in Phase 4 means Vercel serverless (no Tectonic) and a VM (with Tectonic) run the identical code path with zero branching. Designing for graceful degradation early paid off at deploy time.
+
 ---
 
 ## Conventions

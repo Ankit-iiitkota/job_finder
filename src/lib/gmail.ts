@@ -3,6 +3,7 @@ import { env } from "@/lib/env";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { safeFetch } from "@/lib/http";
+import { decryptIfNeeded, encryptSecret } from "@/lib/crypto";
 
 /**
  * Gmail via raw REST (FEATURES.md F5) — deliberately NOT the `googleapis`
@@ -31,7 +32,7 @@ export async function getGmailAccessToken(userId: string): Promise<string> {
 
   const now = Math.floor(Date.now() / 1000);
   const stillValid = account.access_token && (account.expires_at ?? 0) > now + 60;
-  if (stillValid) return account.access_token!;
+  if (stillValid) return decryptIfNeeded(account.access_token)!;
 
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
     throw new AppError("INTERNAL", "Google OAuth is not configured");
@@ -43,7 +44,7 @@ export async function getGmailAccessToken(userId: string): Promise<string> {
     body: new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID,
       client_secret: env.GOOGLE_CLIENT_SECRET,
-      refresh_token: account.refresh_token,
+      refresh_token: decryptIfNeeded(account.refresh_token)!,
       grant_type: "refresh_token",
     }),
     retries: 1,
@@ -61,7 +62,7 @@ export async function getGmailAccessToken(userId: string): Promise<string> {
   await db.account.update({
     where: { id: account.id },
     data: {
-      access_token: token.access_token,
+      access_token: encryptSecret(token.access_token), // encrypted at rest — never plaintext in the DB
       expires_at: now + token.expires_in,
     },
   });

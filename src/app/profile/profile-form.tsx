@@ -14,6 +14,7 @@ export interface ProfileFormData {
   portfolioUrl: string | null;
   githubUrl: string | null;
   linkedinUrl: string | null;
+  telegramChatId: string | null;
   parsedResume: ParsedResume | null;
 }
 
@@ -75,6 +76,7 @@ export function ProfileForm({ initial }: { initial: ProfileFormData }) {
         linkedinUrl: form.linkedinUrl || null,
         sendMode: form.sendMode,
         dailyEmailCap: form.dailyEmailCap,
+        telegramChatId: form.telegramChatId || null,
       }),
     });
     setStatus(
@@ -234,6 +236,17 @@ export function ProfileForm({ initial }: { initial: ProfileFormData }) {
               onChange={(e) =>
                 setForm({ ...form, dailyEmailCap: Number(e.target.value) || 1 })
               }
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>
+              Telegram chat ID (optional — get notified when a recruiter replies)
+            </label>
+            <input
+              className={inputClass}
+              placeholder="message @BotFather to set up a bot, then paste your chat id"
+              value={form.telegramChatId ?? ""}
+              onChange={(e) => setForm({ ...form, telegramChatId: e.target.value })}
             />
           </div>
         </div>

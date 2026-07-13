@@ -217,8 +217,18 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 - [x] Application detail = the full approval screen: Tailor Resume (shows ATS score + missing keywords) → Find Recruiter (confidence + alternates) → Draft Outreach with AI → **editable** subject/body → Send (respects daily cap, shows sent/replied state) → LinkedIn copy buttons (records `copiedAt`) → event timeline, all in one page with optimistic refetch after each action
 - [x] Settings already covered by the `/profile` page from Phase 3 (send mode, daily cap, links)
 
-### Phase 9 — Production Polish
-- [ ] Email verification hardening, A/B templates, skill-gap analysis
-- [ ] Notifications (Telegram/email)
-- [ ] Encrypt Gmail tokens at rest, security review
-- [ ] Deploy: Vercel (app) + VM/local (n8n + LaTeX), n8n workflow JSONs exported to `n8n/workflows/`
+### ✅ Phase 9 — Production Polish (DONE)
+- [x] **Gmail tokens encrypted at rest**: AES-256-GCM (key derived from `AUTH_SECRET` via SHA-256), tamper-evident (auth tag). Encryption hooked at the exact two boundaries that touch tokens — an `withEncryptedTokens()` wrapper around the Auth.js Prisma adapter's `linkAccount` (write), and `getGmailAccessToken` in `lib/gmail.ts` (read/refresh-write). `isEncrypted()` guard makes the rollout backwards-compatible with any pre-existing plaintext row. Verified: 7/7 checks in `scripts/smoke-crypto.ts` (round trip, tamper detection, IV uniqueness)
+- [x] **Runaway-AI-cost guard**: `assertAiCallBudget()` caps tailoring + drafting calls at 30/user/day using the existing event log — no new table, reuses Phase 4/7 infrastructure
+- [x] **Skill-gap analysis**: aggregates `jdAnalysis.requiredSkills`/`niceToHaveSkills` across every tailored application vs. the master profile — zero additional AI calls, pure read of already-stored data; surfaced on the dashboard
+- [x] **A/B email templates**: deterministic tone bucket (`concise`/`warm`) hashed from the application id — stable across redrafts, no experiments table; reply-rate-by-variant widget on the dashboard, winner highlighted
+- [x] **Notifications**: Telegram Bot API (free, raw REST — same posture as the Gmail client), wired to reply detection; silently no-ops when unconfigured so it never blocks a core flow; per-user opt-in chat ID in `/profile`
+- [x] **Security headers**: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` on every response via `next.config.ts`
+- [x] **Deployment**: multi-stage `Dockerfile` (Next.js `output: "standalone"` — minimal image, no full `node_modules`) for a VM alongside n8n; deliberately ships **without** a LaTeX binary — `compile.ts`'s local/remote auto-detection (Phase 4) means the exact same code path already handles both Vercel serverless (no Tectonic → remote fallback) and a VM with Tectonic installed, zero config branching needed
+- [x] n8n workflow JSONs already exported in Phase 7 (`n8n/workflows/`)
+
+**Deploy checklist:**
+1. **Database** — Neon/Supabase free-tier Postgres → `DATABASE_URL`; run `npx prisma migrate deploy`
+2. **App (Vercel)** — import the repo, set env vars (`AUTH_SECRET` via `npx auth secret`, `GOOGLE_CLIENT_ID`/`SECRET` with the prod redirect URI added in Google Cloud Console, `ANTHROPIC_API_KEY`, `N8N_CALLBACK_SECRET`, `TELEGRAM_BOT_TOKEN` optional)
+3. **n8n** — Railway/Fly/small VM via `docker-compose.yml`, or the provided `Dockerfile` alongside it on one VM; set `APP_BASE_URL` + `N8N_CALLBACK_SECRET` (same value as the app) per `n8n/README.md`; import the 5 workflow JSONs and activate them
+4. **Google OAuth** — add the production redirect URI (`https://<domain>/api/auth/callback/google`) in the Cloud Console OAuth client before going live

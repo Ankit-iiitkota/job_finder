@@ -66,9 +66,11 @@ model User {
   image         String?
   emailVerified DateTime?
   // user preferences
-  sendMode      SendMode  @default(APPROVAL)
-  dailyEmailCap Int       @default(20)
-  createdAt     DateTime  @default(now())
+  sendMode       SendMode  @default(APPROVAL)
+  dailyEmailCap  Int       @default(20)
+  // optional: enables Telegram notifications on reply (FEATURES.md upgrade F8)
+  telegramChatId String?
+  createdAt      DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   profile      Profile?
@@ -235,6 +237,9 @@ model Email {
   type    EmailType
   subject String
   body    String
+  // A/B test bucket for the cold email's tone (FEATURES.md upgrade F4);
+  // null for follow-ups, which are templated rather than AI-drafted
+  variant String?
 
   // idempotency: n8n retries must never double-send (see AGENTS.md 4.6 rule 9)
   idempotencyKey String @unique
