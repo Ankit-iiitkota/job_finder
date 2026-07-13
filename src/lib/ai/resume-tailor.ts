@@ -41,6 +41,9 @@ export async function tailorResume(
     system: SYSTEM_PROMPT,
     prompt,
     schema: tailoredResumeSchema,
-    maxOutputTokens: 8192,
+    // Groq's free-tier TPM budget charges prompt + completion together
+    // (see lib/ai/client.ts) — this is the largest of the three AI calls
+    // (JD analysis + full tailored resume), so it gets the most headroom.
+    maxOutputTokens: 3500,
   });
 }

@@ -24,6 +24,9 @@ export async function parseResume(resumeText: string): Promise<ParsedResume> {
     system: SYSTEM_PROMPT,
     prompt: `Extract the structured profile from this resume:\n\n${resumeText}`,
     schema: parsedResumeSchema,
-    maxOutputTokens: 8192,
+    // Groq's free-tier TPM budget charges prompt + completion together
+    // (see lib/ai/client.ts) — 3000 is generous for a parsed resume and
+    // leaves headroom under the 8000 TPM cap.
+    maxOutputTokens: 3000,
   });
 }

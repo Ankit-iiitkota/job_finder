@@ -21,7 +21,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - **Next.js 16 + TypeScript** — one codebase for UI + API, App Router, type safety
 - **PostgreSQL + Prisma 7** — relational fit (users→jobs→applications→emails); DB-level constraints do real work (dedupe, idempotency)
 - **n8n (self-hosted)** — orchestrates scraping/LLM/email schedules OUTSIDE the web request cycle; visual debugging, retries
-- **Google Gemini (free tier)** — resume parsing/tailoring, email drafting; zero paid dependencies in the whole project (originally Claude — see Step 10, swapped behind `lib/ai/` without touching any prompt or schema)
+- **Groq (free tier, `openai/gpt-oss-20b`)** — resume parsing/tailoring, email drafting; zero paid dependencies in the whole project. Provider history: Claude → Gemini → Groq (Steps 10 & 13), swapped behind `lib/ai/` both times without touching any prompt or schema
 - **LaTeX (Tectonic)** — ATS-safe resume PDFs
 - **Gmail API** — send from user's own inbox (deliverability + authenticity), detect replies
 
@@ -117,6 +117,15 @@ Next.js 16 scaffold, Prisma 7 schema (8 tables, dedupe + idempotency constraints
 ### Step 12 — Gemini key testing exposed a real error-handling gap ✅
 Plugging in a real Gemini key immediately surfaced two account-level facts (not code bugs): the hardcoded default model `gemini-2.5-flash` is dead for new API keys (clean 404 "no longer available to new users" — fixed default to the `gemini-flash-latest` alias, which tracks Google's current model instead of a pinned name that ages out), and this specific key's project has a **zero** free-tier quota for the standard models (`limit: 0` in the 429 response — a provisioning gap on the Google Cloud project, not a "used up" quota).
 **The valuable finding wasn't the quota — it was what testing against it revealed**: `generateStructured()` had zero error handling around the actual API call. A 503/429 from Gemini was thrown as a raw SDK `ApiError` straight through `apiHandler`, which the code hadn't accounted for — the exact "raw exception leaks to the client" failure mode rule 5 (AGENTS.md conventions) exists to prevent. Fixed with a `toAppError()` mapper (429→`RATE_LIMITED`, 503→`UPSTREAM_ERROR` with a friendly message, 401/403→`INTERNAL`) plus a short retry-with-backoff on 503 specifically, mirroring the same transient-vs-permanent distinction already used in `safeFetch` and the Prisma retry extension. **A failing test run that never got a clean success was still worth the tool calls** — it found a bug no success path would have.
+
+### Step 13 — Swapped Gemini for Groq (second real provider swap) ✅
+**The boundary held a second time**, and this swap surfaced sharper lessons than the first because Groq's structured-output support is narrower and its rate limits are stricter than Gemini's:
+- **Not every model supports structured output.** The obvious first choice, `llama-3.3-70b-versatile`, rejected `response_format: json_schema` outright (400). Checked Groq's own docs via WebFetch instead of guessing further: only the `gpt-oss` family supports it, `strict: true` on `gpt-oss-20b`/`gpt-oss-120b` being the reliable option.
+- **`strict: true` isn't just a nice-to-have — it fixes a real bug.** Without it, `gpt-oss-120b` once echoed the JSON Schema's own `$schema` metadata key back as a literal output field, passing `additionalProperties: false` right past the server. Enabling strict mode (genuine constrained decoding, not prompt-guided best-effort) closed that gap.
+- **Groq's free-tier TPM budget charges `prompt_tokens + max_completion_tokens` together, not just what's actually generated.** A `maxOutputTokens: 8192` default inherited from the Claude/Gemini era alone burned most of an 8000 TPM cap regardless of the real prompt size — the fix was reducing per-call-site token budgets to realistic values, not switching models.
+- **Model size ≠ rate-limit headroom**: `gpt-oss-20b` and `gpt-oss-120b` share the identical 8000 TPM ceiling on free tier, so the smaller/faster model was a strictly better default with no capability tradeoff on structured extraction tasks.
+- **A rare `400 json_validate_failed` (empty `failed_generation`, no detail to act on) reproduced once under back-to-back rapid testing and succeeded immediately on retry** — added it to the retryable-error set alongside 5xx, the same "retry transient, fail fast on permanent" split used everywhere else in this codebase (`safeFetch`, the Prisma extension, and Step 12's Gemini error mapping).
+**What stayed true across both swaps:** every fabrication rule, every Zod schema, every prompt's business logic — untouched. Verified live with a 3-call, 8-check smoke test (parse → tailor → draft) hitting the real Groq API, including the specific check that mattered most: the tailored resume's company field still matched the master profile exactly.
 
 ---
 

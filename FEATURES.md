@@ -62,7 +62,7 @@ An AI-powered job application autopilot: upload your resume once → the platfor
                                         │
      ┌──────────────────┬───────────────┼──────────────────────┐
 ┌────▼─────────┐ ┌──────▼──────┐ ┌──────▼───────────┐ ┌────────▼───────┐
-│ FREE Job APIs│ │ Gemini API  │ │ FREE Email Finder│ │ Gmail API      │
+│ FREE Job APIs│ │ Groq API    │ │ FREE Email Finder│ │ Gmail API      │
 │ RemoteOK     │ │ parse/tailor│ │ patterns + MX +  │ │ send + reply   │
 │ Remotive     │ │ draft/msgs  │ │ site scraping    │ │ detection      │
 │ Arbeitnow    │ └─────────────┘ └──────────────────┘ └────────────────┘
@@ -106,7 +106,7 @@ An AI-powered job application autopilot: upload your resume once → the platfor
 ```
 
 ### Other free choices
-LaTeX: Tectonic (Docker) · Email: Gmail API · DB: Neon/Supabase free tier · n8n: self-hosted Docker · Hosting: Vercel free tier · LLM: **Google Gemini free tier** (`gemini-2.5-flash`, no card required) — the project has **zero paid dependencies**. Originally built against Claude and swapped to Gemini once `lib/ai/` proved out as a real provider boundary (see §13 build log) — every call site (resume parsing, tailoring, email drafting) uses Zod schemas + structured output regardless of provider, so the swap touched only `lib/ai/client.ts` and three call sites, not the schemas or business logic.
+LaTeX: Tectonic (Docker) · Email: Gmail API · DB: Neon/Supabase free tier · n8n: self-hosted Docker · Hosting: Vercel free tier · LLM: **Groq free tier** (`openai/gpt-oss-20b`, no card required, very fast inference) — the project has **zero paid dependencies**. Provider history: Claude → Gemini → Groq, all behind the same `lib/ai/` boundary — every call site (resume parsing, tailoring, email drafting) uses Zod schemas + structured output regardless of provider, so each swap touched only `lib/ai/client.ts`, never the schemas or business logic (see AGENTS.md build log for both swaps).
 
 ---
 
@@ -163,7 +163,7 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 ### ✅ Phase 3 — Auth + Profile + Resume Upload (DONE)
 - [x] Auth.js v5 with Google provider + Gmail scopes (`gmail.send`, `gmail.readonly`, offline access → refresh token stored on Account); Prisma adapter, database sessions
 - [x] Resume upload `POST /api/resume` (PDF via unpdf, DOCX via mammoth; 5MB cap; scanned-image detection)
-- [x] Gemini integration `lib/ai/`: `parseResume()` — structured outputs (Zod schema-constrained via `responseJsonSchema`), extraction-only prompt (no fabrication), safety/truncation handling (see §13 for the provider swap from Claude)
+- [x] AI integration `lib/ai/`: `parseResume()` — structured outputs (Zod schema-constrained), extraction-only prompt (no fabrication), safety/truncation handling. Provider swapped twice since (Claude → Gemini → Groq) with zero changes to this file's logic — see AGENTS.md build log
 - [x] File storage adapter (`lib/storage.ts` — local disk now, S3/Supabase swappable; path-traversal guard)
 - [x] Profile service + `GET/PUT /api/profile` (target roles, locations, links, send mode, daily cap)
 - [x] UI: landing page with Google sign-in, `/profile` editor (upload → parsed skills preview → preferences form)
@@ -229,6 +229,6 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 
 **Deploy checklist:**
 1. **Database** — Neon/Supabase free-tier Postgres → `DATABASE_URL`; run `npx prisma migrate deploy`
-2. **App (Vercel)** — import the repo, set env vars (`AUTH_SECRET` via `npx auth secret`, `GOOGLE_CLIENT_ID`/`SECRET` with the prod redirect URI added in Google Cloud Console, `GEMINI_API_KEY`, `N8N_CALLBACK_SECRET`, `TELEGRAM_BOT_TOKEN` optional)
+2. **App (Vercel)** — import the repo, set env vars (`AUTH_SECRET` via `npx auth secret`, `GOOGLE_CLIENT_ID`/`SECRET` with the prod redirect URI added in Google Cloud Console, `GROQ_API_KEY`, `N8N_CALLBACK_SECRET`, `TELEGRAM_BOT_TOKEN` optional)
 3. **n8n** — Railway/Fly/small VM via `docker-compose.yml`, or the provided `Dockerfile` alongside it on one VM; set `APP_BASE_URL` + `N8N_CALLBACK_SECRET` (same value as the app) per `n8n/README.md`; import the 5 workflow JSONs and activate them
 4. **Google OAuth** — add the production redirect URI (`https://<domain>/api/auth/callback/google`) in the Cloud Console OAuth client before going live

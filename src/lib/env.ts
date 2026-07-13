@@ -33,14 +33,18 @@ const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
-  // LLM — Gemini free tier (see AGENTS.md 4.5: swapped from Claude so the
-  // project has zero paid dependencies; free key: aistudio.google.com/apikey)
-  GEMINI_API_KEY: z.string().optional(),
-  // "gemini-2.5-flash" is confirmed dead for new API keys (404 "no longer
-  // available to new users") as of this writing — Google's model lineup
-  // moves fast. The "-latest" alias tracks whatever Google currently
-  // recommends instead of a pinned version that can be deprecated under us.
-  GEMINI_MODEL: z.string().default("gemini-flash-latest"),
+  // LLM — Groq free tier (see AGENTS.md 4.5: Claude -> Gemini -> Groq, all
+  // behind the same lib/ai/ boundary; free key: console.groq.com/keys)
+  GROQ_API_KEY: z.string().optional(),
+  // Only the gpt-oss family supports response_format:"json_schema" on Groq
+  // (confirmed against their docs — most models, including llama-3.3-70b,
+  // reject it outright with a 400). gpt-oss-20b and -120b share the same
+  // 8000 TPM free-tier ceiling, so the smaller/faster model is the better
+  // default with no rate-limit tradeoff. Groq's TPM budget charges
+  // prompt_tokens + max_completion_tokens together (not just what's
+  // actually generated) — keep maxOutputTokens per call site realistic,
+  // not maxed out, or a single request can exceed the cap on its own.
+  GROQ_MODEL: z.string().default("openai/gpt-oss-20b"),
 
   // Free-tier job sources (all optional; adapters skip sources without keys)
   ADZUNA_APP_ID: z.string().optional(),
