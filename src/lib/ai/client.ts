@@ -33,8 +33,12 @@ function sleep(ms: number): Promise<void> {
 /** Map a Gemini SDK error into our standard AppError envelope (AGENTS.md rule 5: no raw exceptions leak to API responses). */
 function toAppError(error: unknown): AppError {
   if (!(error instanceof ApiError)) {
+    // network-level failure (DNS, TCP, timeout) rather than an API response —
+    // log the real cause here, since AppError's message to the client is generic
+    logger.error({ err: error }, "gemini call failed before receiving an API response");
     return new AppError("UPSTREAM_ERROR", "The AI request failed, please try again");
   }
+  logger.error({ status: error.status, message: error.message }, "gemini API returned an error");
   switch (error.status) {
     case 429:
       return new AppError(
