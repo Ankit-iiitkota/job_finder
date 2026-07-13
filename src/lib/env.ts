@@ -1,4 +1,19 @@
+import { setDefaultResultOrder } from "node:dns";
 import { z } from "zod";
+
+/**
+ * Prefer IPv4 for outbound DNS lookups, process-wide. Several free APIs
+ * this app calls (Neon, Adzuna, ...) publish both A and AAAA records; on
+ * networks with a broken/slow IPv6 path, Node can pick the AAAA record and
+ * hang until a connection-level timeout, which surfaces as an intermittent
+ * "fetch failed" / ETIMEDOUT that looks like flaky infrastructure but is
+ * actually a routing issue. Lives here (not e.g. db.ts) because env.ts is
+ * the one module every server code path imports first — a fix that only
+ * ran when the Prisma client happened to load previously left plain
+ * `fetch()` calls (job adapters, email finder, etc.) unprotected. Safe:
+ * nothing in this app depends on IPv6.
+ */
+setDefaultResultOrder("ipv4first");
 
 /**
  * Validated environment — the app fails fast at boot with a readable error
@@ -26,6 +41,7 @@ const envSchema = z.object({
   // Free-tier job sources (all optional; adapters skip sources without keys)
   ADZUNA_APP_ID: z.string().optional(),
   ADZUNA_APP_KEY: z.string().optional(),
+  ADZUNA_COUNTRY: z.string().length(2).default("in"), // ISO country code Adzuna's API expects in the URL path
   JOOBLE_API_KEY: z.string().optional(),
 
   // LaTeX compilation

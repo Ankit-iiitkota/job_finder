@@ -155,7 +155,7 @@ Status flow: `FOUND → RESUME_READY → EMAIL_QUEUED → EMAIL_SENT → FOLLOWU
 
 ### ✅ Phase 2 — Job Discovery Engine (DONE)
 - [x] `JobSourceAdapter` interface + `NormalizedJob` type
-- [x] Adapters: RemoteOK, Remotive, Arbeitnow (free, no keys needed)
+- [x] Adapters: RemoteOK, Remotive, Arbeitnow (free, no keys needed), HN "Who is Hiring" (Phase 5), Adzuna (free key, India + global + real salary data — response shape verified against the live API, not assumed)
 - [x] Job scan service: parallel fetch (Promise.allSettled — one source failing never kills the scan), normalize, freshness filter, upsert dedupe
 - [x] `POST /api/jobs/scan` (secret-protected, n8n will call this) + `GET /api/jobs` (search/filter/paginate)
 - [x] Match scoring utility (skill/keyword overlap, 0–100, explainable)

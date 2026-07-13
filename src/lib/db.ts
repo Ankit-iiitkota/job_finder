@@ -1,18 +1,7 @@
-import { setDefaultResultOrder } from "node:dns";
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { env } from "@/lib/env";
+import { env } from "@/lib/env"; // also applies the process-wide IPv4 DNS preference — see env.ts
 import { logger } from "@/lib/logger";
-
-/**
- * Prefer IPv4 for outbound DNS lookups. Neon (and most managed Postgres)
- * publish both A and AAAA records; on networks with a broken or slow IPv6
- * path, Node's default resolution can pick the AAAA record and hang until
- * a connection-level timeout — surfacing as an intermittent ETIMEDOUT that
- * looks like flaky infrastructure but is actually a routing issue. This is
- * process-wide and safe: nothing here depends on IPv6.
- */
-setDefaultResultOrder("ipv4first");
 
 /**
  * Transient-connection retry, same philosophy as `safeFetch` (lib/http.ts)

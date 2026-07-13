@@ -1,8 +1,10 @@
 /**
  * Smoke test: hit each free job API for real and print what comes back.
  * Usage: npx tsx scripts/smoke-adapters.ts
- * (No DB needed — this tests fetch + normalization only.)
+ * (No DB needed — this tests fetch + normalization only, but the Adzuna
+ * adapter now imports lib/env, which validates the full env at import time.)
  */
+import "dotenv/config";
 import { jobSourceAdapters } from "@/server/jobs/adapters";
 import { computeMatchScore } from "@/server/jobs/match";
 
