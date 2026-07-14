@@ -14,7 +14,7 @@ export async function NavBar() {
   if (!session?.user) return null;
 
   return (
-    <header className="border-b border-zinc-200 dark:border-zinc-800">
+    <header className="animate-fade-in-down border-b border-zinc-200 dark:border-zinc-800">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="font-semibold tracking-tight">

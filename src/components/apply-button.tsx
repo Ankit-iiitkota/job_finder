@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { readError } from "@/lib/read-error";
 
 export function ApplyButton({ jobId }: { jobId: string }) {
@@ -28,13 +29,15 @@ export function ApplyButton({ jobId }: { jobId: string }) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
+      <motion.button
         onClick={() => void apply()}
         disabled={state === "busy"}
-        className="rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        className="rounded-lg bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
       >
         {state === "busy" ? "Applying…" : "Apply"}
-      </button>
+      </motion.button>
       {error && <p className="max-w-[220px] text-right text-xs text-red-500">{error}</p>}
     </div>
   );

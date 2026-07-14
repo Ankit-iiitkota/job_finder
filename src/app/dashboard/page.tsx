@@ -41,18 +41,19 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        <StatCard label="Jobs found today" value={stats.jobsFoundToday} hint="across all sources" />
-        <StatCard label="Jobs found this week" value={stats.jobsFoundThisWeek} />
-        <StatCard label="Active applications" value={active} />
-        <StatCard label="Resumes generated" value={stats.resumesGenerated} />
-        <StatCard label="Emails sent" value={stats.emailsSent} />
-        <StatCard label="Replies received" value={stats.repliesReceived} />
+        <StatCard index={0} label="Jobs found today" value={stats.jobsFoundToday} hint="across all sources" />
+        <StatCard index={1} label="Jobs found this week" value={stats.jobsFoundThisWeek} />
+        <StatCard index={2} label="Active applications" value={active} />
+        <StatCard index={3} label="Resumes generated" value={stats.resumesGenerated} />
+        <StatCard index={4} label="Emails sent" value={stats.emailsSent} />
+        <StatCard index={5} label="Replies received" value={stats.repliesReceived} />
         <StatCard
+          index={6}
           label="Response rate"
           value={`${Math.round(stats.responseRate * 100)}%`}
           hint={stats.emailsSent === 0 ? "no emails sent yet" : undefined}
         />
-        <StatCard label="LinkedIn messages sent" value={stats.linkedinMessagesCopied} />
+        <StatCard index={7} label="LinkedIn messages sent" value={stats.linkedinMessagesCopied} />
       </div>
 
       {stats.applications.total > 0 && (
